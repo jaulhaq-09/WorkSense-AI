@@ -1,14 +1,23 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database import get_db
 from app.intelligence.prediction import ml_engine
 from app.schemas.schemas import EffortPredictionRequest, EffortPredictionResponse, AnomalyDetectionRequest
 from app.models.entities import User
-from app.routes.deps import get_current_user
+from app.routes.deps import get_current_user, require_role
 
 router = APIRouter(prefix="/ml", tags=["Machine Learning"])
 
 @router.get("/model-status")
 def get_model_status(current_user: User = Depends(get_current_user)):
     return ml_engine.get_status()
+
+@router.post("/train-on-database")
+def train_on_database(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "project_manager"]))
+):
+    return ml_engine.train_on_database_records(db)
 
 @router.post("/predict-effort", response_model=EffortPredictionResponse)
 def predict_effort(

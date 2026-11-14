@@ -35,21 +35,26 @@ export const AnalyticsPage = () => {
   const [history, setHistory] = useState([]);
   const [blockedTasks, setBlockedTasks] = useState([]);
   const [anomalyResult, setAnomalyResult] = useState(null);
+  const [modelStatus, setModelStatus] = useState(null);
+  const [trainingLoading, setTrainingLoading] = useState(false);
+  const [trainingMessage, setTrainingMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [overviewRes, devsRes, historyRes, tasksRes] = await Promise.all([
+      const [overviewRes, devsRes, historyRes, tasksRes, modelRes] = await Promise.all([
         api.get('/workload/overview'),
         api.get('/workload/developers'),
         api.get('/workload/history?limit=30'),
-        api.get('/tasks?status_filter=blocked')
+        api.get('/tasks?status_filter=blocked'),
+        api.get('/ml/model-status')
       ]);
       setOverview(overviewRes.data);
       setDevelopers(devsRes.data);
       setHistory(historyRes.data);
       setBlockedTasks(tasksRes.data);
+      setModelStatus(modelRes.data);
 
       // Check ML anomaly for the highest utilized developer
       if (devsRes.data.length > 0) {
@@ -72,6 +77,22 @@ export const AnalyticsPage = () => {
     fetchData();
   }, []);
 
+  const handleTrainOnDb = async () => {
+    try {
+      setTrainingLoading(true);
+      const res = await api.post('/ml/train-on-database');
+      setTrainingMessage(res.data.message);
+      const modelRes = await api.get('/ml/model-status');
+      setModelStatus(modelRes.data);
+      setTimeout(() => setTrainingMessage(''), 6000);
+    } catch (err) {
+      console.error('Failed to train model', err);
+      setTrainingMessage(err.response?.data?.detail || 'Failed to train model on database records');
+    } finally {
+      setTrainingLoading(false);
+    }
+  };
+
   if (loading || !overview) {
     return (
       <DashboardLayout title="Workload Analytics Engine">
@@ -87,18 +108,24 @@ export const AnalyticsPage = () => {
 
   const { analysis, summary } = overview;
 
-  // Format historical trend lines by developer
+  // Format historical trend lines by developer dynamically
   const historyDates = [...new Set(history.map((h) => h.calculated_at.slice(5, 10)))];
   const trendData = historyDates.map((dateStr) => {
     const item = { date: dateStr };
     history
       .filter((h) => h.calculated_at.slice(5, 10) === dateStr)
       .forEach((h) => {
-        const devShort = h.developer_name.split(' ')[0];
-        item[devShort] = h.utilization_percentage;
+        const devName = h.developer_name;
+        item[devName] = h.utilization_percentage;
       });
     return item;
   });
+
+  // Extract all unique developer names dynamically from historical telemetry
+  const activeDevNames = Array.from(
+    new Set(trendData.flatMap((item) => Object.keys(item).filter((k) => k !== 'date')))
+  );
+  const colorPalette = ['#f43f5e', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
 
   return (
     <DashboardLayout title="Workload Intelligence Analytics" onRefresh={fetchData}>
@@ -176,6 +203,49 @@ export const AnalyticsPage = () => {
         </div>
       </div>
 
+      {/* Real Data ML Model Training & Status Banner */}
+      {modelStatus && (
+        <div className="bg-white rounded-xl p-5 border border-indigo-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-r from-indigo-50/40 via-white to-indigo-50/30">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                Effort Prediction Model Status:
+              </span>
+              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                modelStatus.is_synthetic
+                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}>
+                {modelStatus.is_synthetic ? 'Calibrated Baseline' : 'Trained on Real Database Records'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600">
+              {modelStatus.disclaimer}
+              {modelStatus.evaluation_metrics?.mae_hours && (
+                <span className="font-mono text-slate-700 font-bold ml-1">
+                  (MAE: {modelStatus.evaluation_metrics.mae_hours}h, RMSE: {modelStatus.evaluation_metrics.rmse_hours}h)
+                </span>
+              )}
+            </p>
+            {trainingMessage && (
+              <p className="text-xs font-semibold text-indigo-700 pt-1">
+                &rarr; {trainingMessage}
+              </p>
+            )}
+          </div>
+
+          <button
+            onClick={handleTrainOnDb}
+            disabled={trainingLoading}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm shrink-0 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {trainingLoading ? 'Training on DB...' : 'Train ML on Real DB Tasks'}
+          </button>
+        </div>
+      )}
+
       {/* Historical Trend Lines & Developer Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Historical Workload Trends Line Chart */}
@@ -195,9 +265,21 @@ export const AnalyticsPage = () => {
                   contentStyle={{ backgroundColor: '#0f172a', borderRadius: '8px', color: '#fff', fontSize: '12px', border: 'none' }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Line type="monotone" dataKey="Alex" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="Blake" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Casey" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+                {activeDevNames.length === 0 ? (
+                  <Line type="monotone" dataKey="utilization" stroke="#6366f1" />
+                ) : (
+                  activeDevNames.map((name, idx) => (
+                    <Line
+                      key={name}
+                      type="monotone"
+                      dataKey={name}
+                      stroke={colorPalette[idx % colorPalette.length]}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  ))
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
