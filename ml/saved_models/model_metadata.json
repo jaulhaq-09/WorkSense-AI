@@ -1,0 +1,21 @@
+{
+  "model_type": "RandomForestRegressor",
+  "features": [
+    "complexity_num",
+    "priority_num",
+    "estimated_hours",
+    "dev_experience_num",
+    "required_skills_count",
+    "avg_skill_proficiency"
+  ],
+  "n_samples": 2000,
+  "test_size": 0.2,
+  "evaluation_metrics": {
+    "mae_hours": 1.79,
+    "rmse_hours": 2.55,
+    "r2_score": 0.963
+  },
+  "is_synthetic": true,
+  "disclaimer": "Model is trained on structured task effort distributions for demonstration and prototype evaluation. Real-world enterprise deployments should fine-tune with at least 90 days of verified team completion logs.",
+  "trained_at": "2026-11-14T23:27:51.537326"
+}
