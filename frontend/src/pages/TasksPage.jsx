@@ -8,12 +8,10 @@ import {
   Trash2,
   Clock,
   Sparkles,
-  AlertCircle,
   Calendar,
   Layers,
-  ArrowRight,
-  UserCheck,
-  ChevronDown
+  ChevronDown,
+  X
 } from 'lucide-react';
 import api from '../services/api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -85,7 +83,7 @@ export const TasksPage = () => {
       setSkills(skillsRes.data);
     } catch (err) {
       console.error('Failed to fetch tasks', err);
-      addToast('Failed to load task pipeline.', 'error');
+      addToast('Failed to load tasks.', 'error');
     } finally {
       setLoading(false);
     }
@@ -189,7 +187,7 @@ export const TasksPage = () => {
         addToast('Task updated successfully!', 'success');
       } else {
         await api.post('/tasks', payload);
-        addToast('Task created and added to pipeline!', 'success');
+        addToast('Task created and scheduled!', 'success');
       }
       setIsModalOpen(false);
       fetchData();
@@ -200,7 +198,7 @@ export const TasksPage = () => {
   };
 
   const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
+    if (!window.confirm('Delete this task?')) return;
     try {
       await api.delete(`/tasks/${taskId}`);
       addToast('Task deleted.', 'success');
@@ -221,7 +219,7 @@ export const TasksPage = () => {
         hours_spent: parseFloat(hoursSpent),
         description: logDesc
       });
-      addToast(`Logged ${hoursSpent}h for "${activeTaskForLog.task_name}"`, 'success');
+      addToast(`Logged ${hoursSpent}h on "${activeTaskForLog.task_name}"`, 'success');
       setLogModalOpen(false);
       setHoursSpent('2.0');
       setLogDesc('');
@@ -246,19 +244,18 @@ export const TasksPage = () => {
     return true;
   });
 
-  // Cell Dropdown Option Definitions
   const statusOptions = [
-    { value: 'pending', label: 'Pending', dotColor: 'bg-slate-400' },
+    { value: 'pending', label: 'Pending', dotColor: 'bg-zinc-500' },
     { value: 'in_progress', label: 'In Progress', dotColor: 'bg-indigo-400' },
-    { value: 'blocked', label: 'Blocked', dotColor: 'bg-rose-500' },
+    { value: 'blocked', label: 'Blocked', dotColor: 'bg-rose-400' },
     { value: 'completed', label: 'Completed', dotColor: 'bg-emerald-400' },
   ];
 
   const priorityOptions = [
-    { value: 'low', label: 'Low', dotColor: 'bg-slate-400' },
-    { value: 'medium', label: 'Medium', dotColor: 'bg-sky-400' },
+    { value: 'low', label: 'Low', dotColor: 'bg-zinc-500' },
+    { value: 'medium', label: 'Medium', dotColor: 'bg-zinc-400' },
     { value: 'high', label: 'High', dotColor: 'bg-amber-400' },
-    { value: 'urgent', label: 'Urgent / Critical', dotColor: 'bg-rose-500' },
+    { value: 'urgent', label: 'Urgent', dotColor: 'bg-rose-400' },
   ];
 
   const devOptions = [
@@ -270,112 +267,107 @@ export const TasksPage = () => {
     }))
   ];
 
+  const activeFilterCount = [filterProject, filterDeveloper, filterStatus, filterPriority].filter(Boolean).length;
+
   return (
-    <DashboardLayout title="Task Pipeline & Scheduling" onRefresh={fetchData}>
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
-        <div>
-          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Engineering Pipeline</span>
-            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-              {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
-            </span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Click any cell (Status, Priority, Assignee) to update in real-time.
-          </p>
+    <DashboardLayout title="Engineering Tasks" onRefresh={fetchData}>
+      {/* Search & Filter Header (Linear-Style) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-[#111115] border border-white/[0.08] rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* Quick Filter Selectors */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-2.5 py-1.5 bg-[#111115] border border-white/[0.08] rounded-lg text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">Status: All</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="completed">Completed</option>
+          </select>
+
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+            className="px-2.5 py-1.5 bg-[#111115] border border-white/[0.08] rounded-lg text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 hidden sm:inline-block"
+          >
+            <option value="">Priority: All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+
+          <select
+            value={filterDeveloper}
+            onChange={(e) => setFilterDeveloper(e.target.value)}
+            className="px-2.5 py-1.5 bg-[#111115] border border-white/[0.08] rounded-lg text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 hidden md:inline-block"
+          >
+            <option value="">Assignee: All</option>
+            {developers.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => {
+                setFilterProject('');
+                setFilterDeveloper('');
+                setFilterStatus('');
+                setFilterPriority('');
+                setSearch('');
+              }}
+              className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1 flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
 
         {canManage && (
           <button
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition active:scale-95 border border-indigo-500/30"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition shadow-sm shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Create Task</span>
           </button>
         )}
       </div>
 
-      {/* Filter Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search tasks..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-
-        <select
-          value={filterProject}
-          onChange={(e) => setFilterProject(e.target.value)}
-          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.project_name}</option>
-          ))}
-        </select>
-
-        <select
-          value={filterDeveloper}
-          onChange={(e) => setFilterDeveloper(e.target.value)}
-          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Developers</option>
-          {developers.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
-
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="in_progress">In Progress</option>
-          <option value="blocked">Blocked</option>
-          <option value="completed">Completed</option>
-        </select>
-
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Priorities</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="critical">Critical / Urgent</option>
-        </select>
-      </div>
-
-      {/* Main Interactive Table */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
+      {/* Main Streamlined Table */}
+      <div className="rounded-xl bg-[#111115] border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-2.5 px-3">Task & Project</th>
-                <th className="py-2.5 px-3">Status (Click to change)</th>
-                <th className="py-2.5 px-3">Priority (Click)</th>
+              <tr className="border-b border-white/[0.06] text-zinc-400 text-[11px] font-medium bg-[#0e0e12]/60">
+                <th className="py-2.5 px-3.5">Task</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3">Priority</th>
                 <th className="py-2.5 px-3">Complexity</th>
-                <th className="py-2.5 px-3">Effort (Est / Rem)</th>
-                <th className="py-2.5 px-3">Assignee (Click to switch)</th>
+                <th className="py-2.5 px-3">Effort</th>
+                <th className="py-2.5 px-3">Assignee</th>
                 <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-white/[0.04]">
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 text-xs">
+                  <td colSpan={7} className="py-8 text-center text-zinc-500 text-xs">
                     No matching tasks found.
                   </td>
                 </tr>
@@ -383,25 +375,25 @@ export const TasksPage = () => {
                 filteredTasks.map((t) => {
                   const currentDev = t.assigned_developers[0];
                   return (
-                    <tr key={t.id} className="hover:bg-dark-850/60 transition group">
+                    <tr key={t.id} className="hover:bg-white/[0.02] transition group">
                       {/* Task Name & Project */}
-                      <td className="py-3 px-3 max-w-xs">
+                      <td className="py-2.5 px-3.5 max-w-xs">
                         <div
                           onClick={() => canManage && handleOpenEditModal(t)}
-                          className={`font-semibold text-slate-200 truncate ${
-                            canManage ? 'cursor-pointer hover:text-indigo-400' : ''
+                          className={`font-medium text-zinc-200 truncate ${
+                            canManage ? 'cursor-pointer hover:text-white' : ''
                           }`}
                           title={t.task_name}
                         >
                           {t.task_name}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                          {t.project_name || 'General Project'}
+                        <div className="text-[10px] text-zinc-500 truncate">
+                          {t.project_name || 'General'}
                         </div>
                       </td>
 
                       {/* 1-Click Status Cell */}
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-3">
                         <CellDropdown
                           value={t.status}
                           options={statusOptions}
@@ -409,7 +401,7 @@ export const TasksPage = () => {
                             handleCellPatch(
                               t.id,
                               { status: newStatus },
-                              `Status updated to "${newStatus.replace('_', ' ')}"`
+                              `Status set to ${newStatus.replace('_', ' ')}`
                             )
                           }
                           renderTrigger={() => <TaskStatusBadge status={t.status} />}
@@ -417,36 +409,33 @@ export const TasksPage = () => {
                       </td>
 
                       {/* 1-Click Priority Cell */}
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-3">
                         <CellDropdown
                           value={t.priority}
                           options={priorityOptions}
                           disabled={!canManage}
                           onChange={(newPrio) =>
-                            handleCellPatch(t.id, { priority: newPrio }, `Priority updated to "${newPrio}"`)
+                            handleCellPatch(t.id, { priority: newPrio }, `Priority set to ${newPrio}`)
                           }
                           renderTrigger={() => <PriorityBadge priority={t.priority} />}
                         />
                       </td>
 
                       {/* Complexity */}
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-3">
                         <ComplexityBadge complexity={t.complexity} />
                       </td>
 
-                      {/* Effort Numbers */}
-                      <td className="py-3 px-3 font-mono text-slate-300">
+                      {/* Effort */}
+                      <td className="py-2.5 px-3 font-mono text-zinc-300 text-[11px]">
                         <div>
-                          <span className="font-bold text-white">{t.remaining_hours}h</span>
-                          <span className="text-slate-500 text-[11px]"> / {t.estimated_hours}h</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          Logged: {t.actual_hours_logged}h
+                          <span className="font-semibold text-white">{t.remaining_hours}h</span>
+                          <span className="text-zinc-500"> / {t.estimated_hours}h</span>
                         </div>
                       </td>
 
                       {/* 1-Click Developer Assignee Cell */}
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-3">
                         <CellDropdown
                           value={currentDev?.developer_id || 0}
                           options={devOptions}
@@ -455,23 +444,23 @@ export const TasksPage = () => {
                             handleCellPatch(
                               t.id,
                               { assigned_developer_id: newDevId },
-                              newDevId > 0 ? 'Task reassigned successfully!' : 'Task unassigned.'
+                              newDevId > 0 ? 'Reassigned developer.' : 'Unassigned task.'
                             )
                           }
                           renderTrigger={() => (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-dark-950/80 border border-slate-800 text-slate-200 hover:border-slate-700 transition">
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#141418] border border-white/[0.06] text-zinc-300 hover:text-white transition">
                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                              <span className="truncate max-w-[120px] font-semibold text-[11px]">
+                              <span className="truncate max-w-[100px] text-xs">
                                 {currentDev?.name || 'Unassigned'}
                               </span>
-                              {canManage && <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />}
+                              {canManage && <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />}
                             </div>
                           )}
                         />
                       </td>
 
                       {/* Action Buttons */}
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
@@ -481,7 +470,7 @@ export const TasksPage = () => {
                               setLogDesc('');
                               setLogModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-dark-800 transition"
+                            className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition"
                             title="Log Hours"
                           >
                             <Clock className="w-3.5 h-3.5" />
@@ -492,15 +481,15 @@ export const TasksPage = () => {
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(t)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 transition"
-                                title="Edit Full Task"
+                                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition"
+                                title="Edit Task"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteTask(t.id)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                                className="p-1 rounded text-zinc-400 hover:text-rose-400 hover:bg-rose-500/[0.08] transition"
                                 title="Delete Task"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -518,32 +507,32 @@ export const TasksPage = () => {
         </div>
       </div>
 
-      {/* Create / Edit Task Modal with ML Predictor */}
+      {/* Create / Edit Task Modal with Smart ML Predictor */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={isEditing ? 'Edit Task Specifications' : 'Create New Engineering Task'}
+        title={isEditing ? 'Edit Task Specifications' : 'Create Engineering Task'}
       >
-        <form onSubmit={handleSubmitTask} className="space-y-4">
+        <form onSubmit={handleSubmitTask} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Task Title</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Task Title</label>
             <input
               type="text"
               required
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
-              placeholder="e.g. Implement Distributed Lock Manager"
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. Distributed Lock Mechanism"
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Project</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Project</label>
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 required
               >
                 {projects.map((p) => (
@@ -553,11 +542,11 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Developer</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Assigned Engineer</label>
               <select
                 value={assignedDevId}
                 onChange={(e) => setAssignedDevId(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="">Unassigned</option>
                 {developers.map((d) => (
@@ -569,16 +558,16 @@ export const TasksPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2.5">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Complexity</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Complexity</label>
               <select
                 value={complexity}
                 onChange={(e) => {
                   setComplexity(e.target.value);
                   triggerMLPrediction(e.target.value, priority, estimatedHours);
                 }}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="easy">Easy (1.0x)</option>
                 <option value="medium">Medium (1.2x)</option>
@@ -588,14 +577,14 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Priority</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => {
                   setPriority(e.target.value);
                   triggerMLPrediction(complexity, e.target.value, estimatedHours);
                 }}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -605,7 +594,7 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Estimated Hours</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Estimated Hours</label>
               <input
                 type="number"
                 step="0.5"
@@ -616,29 +605,29 @@ export const TasksPage = () => {
                   setEstimatedHours(e.target.value);
                   triggerMLPrediction(complexity, priority, e.target.value);
                 }}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs font-mono text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 required
               />
             </div>
           </div>
 
-          {/* Machine Learning Prediction Telemetry Box */}
-          <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-between text-xs">
+          {/* Machine Learning Smart Suggestion Widget */}
+          <div className="p-3 rounded-lg bg-indigo-500/[0.06] border border-indigo-500/20 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <div>
-                <span className="font-bold text-indigo-300">Random Forest Effort Estimate: </span>
-                <span className="font-mono text-white font-bold">
+                <span className="text-zinc-300">ML Predicted Actual Effort: </span>
+                <span className="font-mono text-white font-semibold">
                   {predicting
-                    ? 'Computing regression...'
+                    ? 'Predicting...'
                     : mlPrediction
                     ? `${mlPrediction.predicted_actual_hours}h`
                     : `${estimatedHours}h baseline`}
                 </span>
                 {mlPrediction && (
-                  <div className="text-[10px] text-slate-400">
-                    Confidence: {(mlPrediction.confidence_score * 100).toFixed(0)}% • Model: Random Forest Regressor
-                  </div>
+                  <span className="text-[10px] text-zinc-500 ml-2">
+                    ({(mlPrediction.confidence_score * 100).toFixed(0)}% confidence)
+                  </span>
                 )}
               </div>
             </div>
@@ -647,22 +636,22 @@ export const TasksPage = () => {
               <button
                 type="button"
                 onClick={() => setEstimatedHours(String(mlPrediction.predicted_actual_hours))}
-                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] transition shadow"
+                className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] transition"
               >
-                Apply AI Hours
+                Use ML Hours
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Required Skill</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Required Skill</label>
               <select
                 value={requiredSkillId}
                 onChange={(e) => setRequiredSkillId(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="">None Required</option>
+                <option value="">None</option>
                 {skills.map((s) => (
                   <option key={s.id} value={s.id}>{s.skill_name}</option>
                 ))}
@@ -670,38 +659,38 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Deadline</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Deadline</label>
               <input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-2.5 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Description (Optional)</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Description (Optional)</label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Detailed architecture notes or ticket requirements..."
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Requirements and architecture notes..."
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+              className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition"
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition"
             >
               {isEditing ? 'Save Changes' : 'Create Task'}
             </button>
@@ -715,9 +704,9 @@ export const TasksPage = () => {
         onClose={() => setLogModalOpen(false)}
         title={`Log Hours: ${activeTaskForLog?.task_name}`}
       >
-        <form onSubmit={handleQuickLogTime} className="space-y-4">
+        <form onSubmit={handleQuickLogTime} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Hours Spent</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Hours Spent</label>
             <input
               type="number"
               step="0.5"
@@ -726,18 +715,18 @@ export const TasksPage = () => {
               value={hoursSpent}
               onChange={(e) => setHoursSpent(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-sm font-mono text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Work Description (Optional)</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Work Description (Optional)</label>
             <textarea
               rows={2}
               value={logDesc}
               onChange={(e) => setLogDesc(e.target.value)}
-              placeholder="e.g. Profiling database indexes & query optimization"
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="What progress was made?"
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
@@ -745,15 +734,15 @@ export const TasksPage = () => {
             <button
               type="button"
               onClick={() => setLogModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+              className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition"
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition"
             >
-              Record Time Log
+              Record Log
             </button>
           </div>
         </form>

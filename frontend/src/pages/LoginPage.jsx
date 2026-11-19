@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, User, Shield, Sparkles, ArrowRight, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Mail, User, Shield, Sparkles, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { LogoMark } from '../components/Sidebar';
 
 export const LoginPage = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -39,7 +40,7 @@ export const LoginPage = () => {
     try {
       if (isSignUp) {
         const user = await signup(name, email, password, selectedRole);
-        addToast(`Welcome to WorkSense AI, ${user.name}! Account created.`, 'success');
+        addToast(`Welcome to WorkSense AI, ${user.name}!`, 'success');
         if (user.role === 'developer') {
           navigate('/personal');
         } else {
@@ -69,40 +70,39 @@ export const LoginPage = () => {
     setIsSignUp(false);
   };
 
-  return (
-    <div className="min-h-screen bg-dark-950 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 text-slate-100 relative overflow-hidden font-sans">
-      {/* Background glow ambiance */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[350px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[250px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />
+  const demoAccounts = [
+    { label: 'Admin', email: 'admin@worksense.ai', pass: 'Admin123!', role: 'System Admin' },
+    { label: 'Project Manager', email: 'pm@worksense.ai', pass: 'Manager123!', role: 'Operations' },
+    { label: 'Alex Rivera', email: 'alex@worksense.ai', pass: 'Dev123!', role: 'Dev (Overloaded)' },
+    { label: 'Dana White', email: 'dana@worksense.ai', pass: 'Dev123!', role: 'Dev (Available)' },
+  ];
 
-      <div className="w-full max-w-md space-y-6 relative z-10">
+  return (
+    <div className="min-h-screen bg-[#09090b] flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 text-zinc-100 relative overflow-hidden font-sans">
+      <div className="w-full max-w-sm space-y-6 relative z-10">
         {/* Brand Header */}
-        <div className="text-center cursor-pointer" onClick={() => navigate('/')}>
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 shadow-xl shadow-indigo-500/25 text-white font-extrabold text-2xl mb-3">
-            ⚡
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-1.5">
-            WorkSense <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">AI</span>
+        <div className="text-center cursor-pointer flex flex-col items-center" onClick={() => navigate('/')}>
+          <LogoMark className="w-9 h-9 mb-3" />
+          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
+            WorkSense <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">AI</span>
           </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Intelligent Developer Workload Analytics & Rebalancing Cockpit
+          <p className="mt-1 text-xs text-zinc-400">
+            Intelligent Workload Analytics Cockpit
           </p>
         </div>
 
         {/* Main Card */}
-        <div className="bg-dark-900/90 backdrop-blur-xl py-6 px-6 sm:px-8 shadow-2xl rounded-2xl border border-slate-700/80">
-          {/* Tab Switcher: Sign In vs Sign Up */}
-          <div className="flex rounded-xl bg-dark-950 p-1 border border-slate-800 mb-6">
+        <div className="bg-[#111115] py-5 px-6 sm:px-7 shadow-2xl rounded-2xl border border-white/[0.08]">
+          {/* Tab Switcher */}
+          <div className="flex rounded-lg bg-zinc-900/80 p-0.5 border border-white/[0.05] mb-5">
             <button
               type="button"
               onClick={() => {
                 setIsSignUp(false);
                 setError('');
               }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-150 ${
-                !isSignUp
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white'
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+                !isSignUp ? 'bg-white/[0.08] text-white shadow-sm font-semibold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               Sign In
@@ -113,10 +113,8 @@ export const LoginPage = () => {
                 setIsSignUp(true);
                 setError('');
               }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-150 ${
-                isSignUp
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white'
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
+                isSignUp ? 'bg-white/[0.08] text-white shadow-sm font-semibold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               Create Account
@@ -124,138 +122,101 @@ export const LoginPage = () => {
           </div>
 
           {error && (
-            <div className="mb-5 rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 flex items-start gap-2.5 text-rose-300 text-xs animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+            <div className="mb-4 rounded-lg bg-rose-500/[0.08] border border-rose-500/25 p-2.5 flex items-start gap-2 text-rose-300 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {isSignUp && (
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                  Full Name
-                </label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Full Name</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <User className="w-4 h-4" />
-                  </div>
+                  <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Elena Rostova"
+                    placeholder="Elena Rostova"
                     required
-                    className="w-full pl-9 pr-3 py-2 bg-dark-950/80 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className="w-full pl-9 pr-3 py-2 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Email Address
-              </label>
+              <label className="block text-[11px] font-medium text-zinc-400 mb-1">Email Address</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                  <Mail className="w-4 h-4" />
-                </div>
+                <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
                   required
-                  className="w-full pl-9 pr-3 py-2 bg-dark-950/80 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  className="w-full pl-9 pr-3 py-2 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
             </div>
 
             {isSignUp && (
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                  Platform Role
-                </label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Role</label>
                 <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('developer')}
-                    className={`py-2 px-2 text-center rounded-lg border font-semibold transition ${
-                      selectedRole === 'developer'
-                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                        : 'bg-dark-950 border-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Developer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('project_manager')}
-                    className={`py-2 px-2 text-center rounded-lg border font-semibold transition ${
-                      selectedRole === 'project_manager'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : 'bg-dark-950 border-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Manager
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('admin')}
-                    className={`py-2 px-2 text-center rounded-lg border font-semibold transition ${
-                      selectedRole === 'admin'
-                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                        : 'bg-dark-950 border-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Admin
-                  </button>
+                  {['developer', 'project_manager', 'admin'].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setSelectedRole(r)}
+                      className={`py-1.5 px-2 text-center rounded-lg border text-xs capitalize transition ${
+                        selectedRole === r
+                          ? 'bg-indigo-600/15 text-indigo-300 border-indigo-500/30 font-semibold'
+                          : 'bg-[#141418] border-white/[0.06] text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {r.replace('_', ' ')}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Password
-              </label>
+              <label className="block text-[11px] font-medium text-zinc-400 mb-1">Password</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                  <Lock className="w-4 h-4" />
-                </div>
+                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="••••••••"
                   required
-                  className="w-full pl-9 pr-10 py-2 bg-dark-950/80 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  className="w-full pl-9 pr-9 py-2 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-zinc-500 hover:text-white"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
             {isSignUp && (
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                  Confirm Password
-                </label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Confirm Password</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
+                  <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••••••"
+                    placeholder="••••••••"
                     required
-                    className="w-full pl-9 pr-3 py-2 bg-dark-950/80 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className="w-full pl-9 pr-3 py-2 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -264,72 +225,47 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 active:scale-98 text-white font-bold text-xs tracking-wide shadow-lg shadow-indigo-600/30 transition duration-150 disabled:opacity-50 mt-2"
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs tracking-wide transition duration-150 disabled:opacity-50 mt-1 shadow-sm"
             >
               {loading ? (
-                <span>Processing...</span>
+                <span>Authenticating...</span>
               ) : isSignUp ? (
                 <>
                   <span>Create Account</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               ) : (
                 <>
                   <span>Sign In</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
           </form>
 
           {/* Quick Demo Credentials */}
-          <div className="mt-6 pt-5 border-t border-slate-800">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 text-center flex items-center justify-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              1-Click Demo Credentials
+          <div className="mt-5 pt-4 border-t border-white/[0.06]">
+            <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mb-2 text-center">
+              1-Click Demo Accounts
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin@worksense.ai', 'Admin123!')}
-                className="p-2 text-left rounded-lg bg-dark-950/80 hover:bg-dark-800 border border-slate-800 hover:border-purple-500/40 transition group"
-              >
-                <div className="font-semibold text-purple-300 group-hover:text-purple-200">Admin</div>
-                <div className="text-[10px] text-slate-400 truncate">admin@worksense.ai</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('pm@worksense.ai', 'Manager123!')}
-                className="p-2 text-left rounded-lg bg-dark-950/80 hover:bg-dark-800 border border-slate-800 hover:border-emerald-500/40 transition group"
-              >
-                <div className="font-semibold text-emerald-300 group-hover:text-emerald-200">Project Manager</div>
-                <div className="text-[10px] text-slate-400 truncate">pm@worksense.ai</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('alex@worksense.ai', 'Dev123!')}
-                className="p-2 text-left rounded-lg bg-dark-950/80 hover:bg-dark-800 border border-slate-800 hover:border-rose-500/40 transition group"
-              >
-                <div className="font-semibold text-rose-300 group-hover:text-rose-200">Dev Alex (Overloaded)</div>
-                <div className="text-[10px] text-slate-400 truncate">alex@worksense.ai</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('dana@worksense.ai', 'Dev123!')}
-                className="p-2 text-left rounded-lg bg-dark-950/80 hover:bg-dark-800 border border-slate-800 hover:border-cyan-500/40 transition group"
-              >
-                <div className="font-semibold text-cyan-300 group-hover:text-cyan-200">Dev Dana (Underutilized)</div>
-                <div className="text-[10px] text-slate-400 truncate">dana@worksense.ai</div>
-              </button>
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              {demoAccounts.map((demo) => (
+                <button
+                  key={demo.email}
+                  type="button"
+                  onClick={() => handleQuickLogin(demo.email, demo.pass)}
+                  className="p-2 text-left rounded-lg bg-[#141418] hover:bg-[#1a1a20] border border-white/[0.05] hover:border-white/[0.12] transition"
+                >
+                  <div className="font-medium text-zinc-200 text-xs truncate">{demo.label}</div>
+                  <div className="text-[10px] text-zinc-500 truncate">{demo.role}</div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="text-center text-[11px] text-slate-500">
-          WorkSense AI Engine • Standard JWT Authentication • Role-Based Access Control
+        <div className="text-center text-[10px] text-zinc-500">
+          Standard JWT Tokens • Role-Based Access Control • PostgreSQL 16
         </div>
       </div>
     </div>

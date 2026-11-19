@@ -9,7 +9,8 @@ import {
   Plus,
   Briefcase,
   Check,
-  ChevronDown
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 import api from '../services/api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -49,7 +50,7 @@ export const DeveloperDashboardPage = () => {
       }
     } catch (err) {
       console.error('Failed to load personal workspace', err);
-      addToast('Failed to load personal workspace.', 'error');
+      addToast('Failed to load workspace.', 'error');
     } finally {
       setLoading(false);
     }
@@ -66,6 +67,22 @@ export const DeveloperDashboardPage = () => {
     setIsLogModalOpen(true);
   };
 
+  const handleQuickAddHours = async (task, hours) => {
+    try {
+      await api.post('/time-logs', {
+        task_id: task.id,
+        developer_id: profile.developer_id,
+        hours_spent: parseFloat(hours),
+        description: `Logged ${hours}h sprint work`
+      });
+      addToast(`+${hours}h recorded on "${task.task_name}".`, 'success');
+      fetchPersonalData();
+    } catch (err) {
+      console.error('Failed to log time', err);
+      addToast('Error logging time.', 'error');
+    }
+  };
+
   const handleLogSubmit = async (e) => {
     e.preventDefault();
     if (!selectedTask || !hoursSpent) return;
@@ -76,7 +93,7 @@ export const DeveloperDashboardPage = () => {
         hours_spent: parseFloat(hoursSpent),
         description: logDesc
       });
-      addToast(`Logged ${hoursSpent}h for "${selectedTask.task_name}"`, 'success');
+      addToast(`Logged ${hoursSpent}h on "${selectedTask.task_name}"`, 'success');
       setIsLogModalOpen(false);
       fetchPersonalData();
     } catch (err) {
@@ -88,7 +105,7 @@ export const DeveloperDashboardPage = () => {
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       await api.patch(`/tasks/${taskId}`, { status: newStatus });
-      addToast(`Task marked as ${newStatus.replace('_', ' ')}!`, 'success');
+      addToast(`Task marked as ${newStatus.replace('_', ' ')}.`, 'success');
       fetchPersonalData();
     } catch (err) {
       console.error('Failed to update task status', err);
@@ -97,131 +114,142 @@ export const DeveloperDashboardPage = () => {
   };
 
   const statusOptions = [
-    { value: 'pending', label: 'Pending', dotColor: 'bg-slate-400' },
+    { value: 'pending', label: 'Pending', dotColor: 'bg-zinc-500' },
     { value: 'in_progress', label: 'In Progress', dotColor: 'bg-indigo-400' },
-    { value: 'blocked', label: 'Blocked', dotColor: 'bg-rose-500' },
+    { value: 'blocked', label: 'Blocked', dotColor: 'bg-rose-400' },
     { value: 'completed', label: 'Completed', dotColor: 'bg-emerald-400' },
   ];
 
   return (
-    <DashboardLayout title="My Engineering Workspace" onRefresh={fetchPersonalData}>
-      {/* Developer Hero Card */}
-      <div className="p-5 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center font-bold text-white text-lg shadow-lg">
-              {profile?.name ? profile.name.charAt(0).toUpperCase() : 'D'}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white tracking-tight">{profile?.name}</h2>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                  {profile?.role || 'Developer'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {profile?.email} • Weekly Target: {workload?.available_hours || 40}h
-              </p>
-            </div>
+    <DashboardLayout title="Developer Workspace" onRefresh={fetchPersonalData}>
+      {/* Focus Cockpit Bar */}
+      <div className="p-4 rounded-xl bg-[#111115] border border-white/[0.06] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center font-bold text-white text-sm shadow-sm">
+            {profile?.name ? profile.name.charAt(0).toUpperCase() : 'D'}
           </div>
-
-          <div className="flex items-center gap-2">
-            {workload && <WorkloadBadge status={workload.workload_status} utilization={workload.utilization_percentage} />}
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-white">{profile?.name}</h2>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-white/[0.06]">
+                Weekly Target: {workload?.available_hours || 40}h
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-500">{profile?.email}</p>
           </div>
         </div>
 
-        {/* Capacity Gauges */}
         {workload && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800">
-            <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Capacity</div>
-              <div className="text-xl font-bold font-mono text-white mt-1">{workload.available_hours}h / wk</div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining Effort</div>
-              <div className="text-xl font-bold font-mono text-white mt-1">{workload.weighted_remaining_effort}h</div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Utilization</div>
-              <div className="text-xl font-bold font-mono text-indigo-400 mt-1">
-                {workload.utilization_percentage.toFixed(1)}%
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-[10px] text-zinc-500 uppercase font-medium">Personal Load</div>
+              <div className="text-sm font-mono font-bold text-white">
+                {workload.weighted_remaining_effort}h remaining
               </div>
             </div>
-
-            <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Active Tasks</div>
-              <div className="text-xl font-bold font-mono text-white mt-1">{workload.total_active_tasks}</div>
-            </div>
+            <WorkloadBadge status={workload.workload_status} utilization={workload.utilization_percentage} />
           </div>
         )}
       </div>
 
-      {/* Assigned Tasks Pipeline */}
-      <div className="p-5 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-white tracking-tight">Assigned Deliverables</h3>
-            <p className="text-xs text-slate-400">Click Status cell to update your progress or click Log Hours</p>
+      {/* Capacity Metrics */}
+      {workload && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-xl bg-[#111115] border border-white/[0.06]">
+            <div className="text-[10px] text-zinc-500 uppercase font-medium">Weekly Capacity</div>
+            <div className="text-xl font-bold font-mono text-white mt-0.5">{workload.available_hours}h</div>
           </div>
-          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-            {tasks.length} active
+
+          <div className="p-3.5 rounded-xl bg-[#111115] border border-white/[0.06]">
+            <div className="text-[10px] text-zinc-500 uppercase font-medium">Weighted Effort</div>
+            <div className="text-xl font-bold font-mono text-white mt-0.5">{workload.weighted_remaining_effort}h</div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#111115] border border-white/[0.06]">
+            <div className="text-[10px] text-zinc-500 uppercase font-medium">Utilization</div>
+            <div className="text-xl font-bold font-mono text-indigo-400 mt-0.5">
+              {workload.utilization_percentage.toFixed(0)}%
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#111115] border border-white/[0.06]">
+            <div className="text-[10px] text-zinc-500 uppercase font-medium">Active Deliverables</div>
+            <div className="text-xl font-bold font-mono text-white mt-0.5">{workload.total_active_tasks}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Deliverables Pipeline */}
+      <div className="p-5 rounded-xl bg-[#111115] border border-white/[0.06]">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06] mb-3">
+          <div>
+            <h3 className="text-xs font-semibold text-white">Assigned Deliverables</h3>
+            <p className="text-[11px] text-zinc-400">Click status to toggle, or use quick time buttons</p>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-white/[0.06]">
+            {tasks.length} tasks
           </span>
         </div>
 
         {tasks.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-500">
-            You currently have no active tasks assigned. Enjoy your available bandwidth!
+          <div className="py-10 text-center text-xs text-zinc-500">
+            No active deliverables currently assigned. All deliverables completed!
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-2.5 px-3">Task Title</th>
-                  <th className="py-2.5 px-3">Project</th>
-                  <th className="py-2.5 px-3">Priority</th>
-                  <th className="py-2.5 px-3">Effort (Est / Rem)</th>
-                  <th className="py-2.5 px-3">Status (Click to toggle)</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {tasks.map((t) => (
-                  <tr key={t.id} className="hover:bg-dark-850/60 transition group">
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-200">{t.task_name}</div>
-                      <div className="text-[11px] text-slate-500 truncate max-w-xs">{t.description || 'No description'}</div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-400">{t.project_name || 'General'}</td>
-                    <td className="py-3 px-3"><PriorityBadge priority={t.priority} /></td>
-                    <td className="py-3 px-3 font-mono text-slate-300">
-                      <div><span className="font-bold text-white">{t.remaining_hours}h</span> rem / {t.estimated_hours}h</div>
-                      <div className="text-[10px] text-slate-500">Logged: {t.actual_hours_logged}h</div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <CellDropdown
-                        value={t.status}
-                        options={statusOptions}
-                        onChange={(newStatus) => handleStatusChange(t.id, newStatus)}
-                        renderTrigger={() => <TaskStatusBadge status={t.status} />}
-                      />
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openLogModal(t)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-800 hover:bg-dark-750 text-indigo-300 hover:text-white border border-slate-700/80 font-semibold text-[11px] transition shadow-sm"
-                      >
-                        <Clock className="w-3 h-3 text-indigo-400" />
-                        <span>Log Hours</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2.5">
+            {tasks.map((t) => (
+              <div
+                key={t.id}
+                className="p-3.5 rounded-lg bg-[#141418] border border-white/[0.05] hover:border-white/[0.10] transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CellDropdown
+                      value={t.status}
+                      options={statusOptions}
+                      onChange={(newStatus) => handleStatusChange(t.id, newStatus)}
+                      renderTrigger={() => <TaskStatusBadge status={t.status} />}
+                    />
+                    <span className="text-xs font-medium text-white truncate">{t.task_name}</span>
+                    <PriorityBadge priority={t.priority} />
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                    <span>Project: {t.project_name || 'General'}</span>
+                    <span>•</span>
+                    <span className="font-mono text-zinc-400">
+                      Remaining: <strong className="text-zinc-200">{t.remaining_hours}h</strong> / {t.estimated_hours}h
+                    </span>
+                    <span>•</span>
+                    <span>Logged: {t.actual_hours_logged}h</span>
+                  </div>
+                </div>
+
+                {/* 1-Click Quick Time Logging Pills */}
+                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                  <button
+                    onClick={() => handleQuickAddHours(t, 1.0)}
+                    className="px-2 py-1 rounded bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-mono text-zinc-300 border border-white/[0.06] transition"
+                    title="Quick log 1 hour"
+                  >
+                    +1h
+                  </button>
+                  <button
+                    onClick={() => handleQuickAddHours(t, 2.0)}
+                    className="px-2 py-1 rounded bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-mono text-zinc-300 border border-white/[0.06] transition"
+                    title="Quick log 2 hours"
+                  >
+                    +2h
+                  </button>
+                  <button
+                    onClick={() => openLogModal(t)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition shadow-sm"
+                  >
+                    <Clock className="w-3 h-3" />
+                    <span>Custom Log</span>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -232,9 +260,9 @@ export const DeveloperDashboardPage = () => {
         onClose={() => setIsLogModalOpen(false)}
         title={`Log Working Hours: ${selectedTask?.task_name}`}
       >
-        <form onSubmit={handleLogSubmit} className="space-y-4">
+        <form onSubmit={handleLogSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Hours Spent Today</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Hours Spent</label>
             <input
               type="number"
               step="0.5"
@@ -243,18 +271,18 @@ export const DeveloperDashboardPage = () => {
               value={hoursSpent}
               onChange={(e) => setHoursSpent(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-sm font-mono text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Work Description (Optional)</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Work Description (Optional)</label>
             <textarea
               rows={2}
               value={logDesc}
               onChange={(e) => setLogDesc(e.target.value)}
-              placeholder="e.g. Unit testing endpoints and fixing transaction rollbacks"
-              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="What did you work on?"
+              className="w-full px-3 py-1.5 bg-[#141418] border border-white/[0.08] rounded-lg text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
@@ -262,15 +290,15 @@ export const DeveloperDashboardPage = () => {
             <button
               type="button"
               onClick={() => setIsLogModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+              className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition"
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition"
             >
-              Record Time Log
+              Record Log
             </button>
           </div>
         </form>

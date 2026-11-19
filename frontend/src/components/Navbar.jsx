@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Clock, Sparkles, Menu, Shield, User, Briefcase } from 'lucide-react';
+import { RefreshCw, Clock, Sparkles, Menu } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -20,11 +20,11 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
     try {
       setRecalculating(true);
       await api.post('/workload/recalculate');
-      addToast('Engine recalculated workload scores & capacity utilization.', 'success');
+      addToast('Workload recalculated successfully across team.', 'success');
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Failed to recalculate workloads', err);
-      addToast('Failed to trigger workload recalculation.', 'error');
+      addToast('Workload recalculation failed.', 'error');
     } finally {
       setTimeout(() => setRecalculating(false), 500);
     }
@@ -40,7 +40,7 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
       setLogModalOpen(true);
     } catch (err) {
       console.error('Failed to fetch tasks', err);
-      addToast('Could not load active tasks for time logging.', 'error');
+      addToast('Could not load active tasks.', 'error');
     }
   };
 
@@ -55,7 +55,7 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
         hours_spent: parseFloat(hoursSpent),
         description: logDesc
       });
-      addToast(`Logged ${hoursSpent}h successfully! Remaining effort updated.`, 'success');
+      addToast(`Logged ${hoursSpent}h successfully!`, 'success');
       setLogModalOpen(false);
       setHoursSpent('2.0');
       setLogDesc('');
@@ -68,43 +68,30 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
     }
   };
 
-  const roleStyles = {
-    admin: { label: 'Admin', color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
-    project_manager: { label: 'Project Manager', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-    developer: { label: 'Developer', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
-  };
-
-  const rolePill = roleStyles[user?.role] || { label: user?.role || 'User', color: 'bg-slate-700/50 text-slate-300 border-slate-600' };
-
   return (
     <>
-      <header className="h-16 bg-dark-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 flex items-center justify-between shrink-0 z-20">
+      <header className="h-14 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
           {onToggleMobile && (
             <button
               onClick={onToggleMobile}
-              className="md:hidden text-slate-400 hover:text-white p-1 rounded-lg hover:bg-dark-800"
+              className="md:hidden text-zinc-400 hover:text-white p-1 rounded-md hover:bg-white/[0.04]"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <div>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              <span>{title}</span>
-              <span className={`hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${rolePill.color}`}>
-                {rolePill.label}
-              </span>
-            </h1>
-          </div>
+          <h1 className="text-sm sm:text-base font-semibold text-white tracking-tight">
+            {title}
+          </h1>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {/* Quick Log Time Button */}
           <button
             onClick={openLogModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-200 transition border border-slate-700/80 shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 transition border border-white/[0.08] shadow-sm"
           >
-            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <Clock className="w-3.5 h-3.5 text-zinc-400" />
             <span className="hidden sm:inline">Log Hours</span>
           </button>
 
@@ -112,11 +99,11 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
           <button
             onClick={handleRecalculate}
             disabled={recalculating}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 active:scale-95 text-white transition shadow-lg shadow-indigo-600/25 border border-indigo-500/30 disabled:opacity-50"
-            title="Trigger intelligent workload recalculation across all developers and tasks"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-sm border border-indigo-500/30 disabled:opacity-50"
+            title="Recalculate workload engine metrics"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{recalculating ? 'Syncing...' : 'Recalculate'}</span>
+            <span className="hidden sm:inline">{recalculating ? 'Syncing...' : 'Sync Engine'}</span>
           </button>
         </div>
       </header>
@@ -125,11 +112,11 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
       <Modal isOpen={logModalOpen} onClose={() => setLogModalOpen(false)} title="Log Working Hours">
         <form onSubmit={handleLogSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Select Task</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Select Task</label>
             <select
               value={selectedTask}
               onChange={(e) => setSelectedTask(e.target.value)}
-              className="w-full px-3 py-2 bg-dark-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 bg-[#121216] border border-white/[0.08] rounded-lg text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               required
             >
               {tasks.length === 0 ? (
@@ -145,7 +132,7 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Hours Spent</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Hours Spent</label>
             <input
               type="number"
               step="0.5"
@@ -154,18 +141,18 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
               value={hoursSpent}
               onChange={(e) => setHoursSpent(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-dark-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 bg-[#121216] border border-white/[0.08] rounded-lg text-xs text-zinc-100 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Work Description (Optional)</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Description (Optional)</label>
             <textarea
               rows={2}
               value={logDesc}
               onChange={(e) => setLogDesc(e.target.value)}
-              placeholder="e.g. Profiling database indexes & refactoring ORM joins"
-              className="w-full px-3 py-2 bg-dark-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="What did you work on?"
+              className="w-full px-3 py-2 bg-[#121216] border border-white/[0.08] rounded-lg text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
@@ -173,16 +160,16 @@ export const Navbar = ({ title, onRefresh, onToggleMobile }) => {
             <button
               type="button"
               onClick={() => setLogModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+              className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={logging || !selectedTask}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition disabled:opacity-50"
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition disabled:opacity-50"
             >
-              {logging ? 'Recording...' : 'Record Time Log'}
+              {logging ? 'Recording...' : 'Record Time'}
             </button>
           </div>
         </form>
