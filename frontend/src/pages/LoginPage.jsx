@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, User, Shield, Sparkles, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Lock, Mail, User, Shield, Sparkles, ArrowRight, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { LogoMark } from '../components/Sidebar';
@@ -79,7 +79,18 @@ export const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-[#09090b] flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 text-zinc-100 relative overflow-hidden font-sans">
-      <div className="w-full max-w-sm space-y-6 relative z-10">
+      {/* Top Left Navigation Link */}
+      <div className="absolute top-5 left-5 sm:top-6 sm:left-6 z-20">
+        <button
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-white transition group py-1.5 px-3 rounded-lg bg-[#111115] hover:bg-[#18181d] border border-white/[0.08] shadow-sm"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition-transform group-hover:-translate-x-0.5" />
+          <span>Back to Home</span>
+        </button>
+      </div>
+
+      <div className="w-full max-w-sm space-y-5 relative z-10">
         {/* Brand Header */}
         <div className="text-center cursor-pointer flex flex-col items-center" onClick={() => navigate('/')}>
           <LogoMark className="w-9 h-9 mb-3" />
