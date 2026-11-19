@@ -11,13 +11,17 @@ import {
   AlertCircle,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  UserCheck,
+  ChevronDown
 } from 'lucide-react';
 import api from '../services/api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { TaskStatusBadge, PriorityBadge, ComplexityBadge } from '../components/StatusBadge';
+import { CellDropdown } from '../components/CellDropdown';
 import { Modal } from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const TasksPage = () => {
   const [tasks, setTasks] = useState([]);
@@ -52,17 +56,18 @@ export const TasksPage = () => {
   const [minProficiency, setMinProficiency] = useState('2');
   const [dependsOnTaskId, setDependsOnTaskId] = useState('');
 
-  // Machine Learning Live Prediction Assistant State
+  // ML Effort Prediction
   const [mlPrediction, setMlPrediction] = useState(null);
   const [predicting, setPredicting] = useState(false);
 
   // Quick Log Time Modal State
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [activeTaskForLog, setActiveTaskForLog] = useState(null);
-  const [hoursSpent, setHoursSpent] = useState('');
+  const [hoursSpent, setHoursSpent] = useState('2.0');
   const [logDesc, setLogDesc] = useState('');
 
   const { role } = useAuth();
+  const { addToast } = useToast();
   const canManage = role === 'admin' || role === 'project_manager';
 
   const fetchData = async () => {
@@ -80,6 +85,7 @@ export const TasksPage = () => {
       setSkills(skillsRes.data);
     } catch (err) {
       console.error('Failed to fetch tasks', err);
+      addToast('Failed to load task pipeline.', 'error');
     } finally {
       setLoading(false);
     }
@@ -89,7 +95,7 @@ export const TasksPage = () => {
     fetchData();
   }, []);
 
-  // Live ML prediction trigger when complexity, priority, or hours change
+  // ML Effort Prediction trigger
   const triggerMLPrediction = async (comp, prio, hours) => {
     if (!hours || parseFloat(hours) <= 0) return;
     try {
@@ -98,19 +104,29 @@ export const TasksPage = () => {
         complexity: comp,
         priority: prio,
         estimated_hours: parseFloat(hours),
-        dev_experience: 'mid',
-        required_skills_count: 2,
-        avg_skill_proficiency: 3.5
+        required_skill_proficiency: parseInt(minProficiency) || 2
       });
       setMlPrediction(res.data);
     } catch (err) {
-      console.error('Failed to predict effort', err);
+      console.error('ML Prediction error', err);
     } finally {
       setPredicting(false);
     }
   };
 
-  const openCreateModal = () => {
+  // CELL CRUD: Patch task field
+  const handleCellPatch = async (taskId, patchPayload, successMsg) => {
+    try {
+      const res = await api.patch(`/tasks/${taskId}`, patchPayload);
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? res.data : t)));
+      addToast(successMsg, 'success');
+    } catch (err) {
+      console.error('Failed to update cell', err);
+      addToast(err.response?.data?.detail || 'Failed to update field.', 'error');
+    }
+  };
+
+  const handleOpenCreateModal = () => {
     setIsEditing(false);
     setCurrentTaskId(null);
     setProjectId(projects[0]?.id || '');
@@ -126,322 +142,408 @@ export const TasksPage = () => {
     setMinProficiency('2');
     setDependsOnTaskId('');
     setMlPrediction(null);
-    triggerMLPrediction('medium', 'medium', '10.0');
     setIsModalOpen(true);
   };
 
-  const openEditModal = (t) => {
+  const handleOpenEditModal = (task) => {
     setIsEditing(true);
-    setCurrentTaskId(t.id);
-    setProjectId(t.project_id);
-    setTaskName(t.task_name);
-    setDescription(t.description || '');
-    setComplexity(t.complexity);
-    setPriority(t.priority);
-    setEstimatedHours(t.estimated_hours.toString());
-    setTaskStatus(t.status);
-    setDeadline(t.deadline || '');
-    setAssignedDevId(t.assigned_developers[0]?.developer_id || '');
-    setRequiredSkillId(t.required_skills[0]?.skill_id || '');
-    setMinProficiency(t.required_skills[0]?.minimum_proficiency || '2');
-    setDependsOnTaskId(t.dependencies[0]?.depends_on_task_id || '');
-    triggerMLPrediction(t.complexity, t.priority, t.estimated_hours);
+    setCurrentTaskId(task.id);
+    setProjectId(task.project_id);
+    setTaskName(task.task_name);
+    setDescription(task.description || '');
+    setComplexity(task.complexity);
+    setPriority(task.priority);
+    setEstimatedHours(String(task.estimated_hours));
+    setTaskStatus(task.status);
+    setDeadline(task.deadline || '');
+    setAssignedDevId(task.assigned_developers[0]?.developer_id || '');
+    setRequiredSkillId(task.required_skills[0]?.skill_id || '');
+    setMinProficiency(String(task.required_skills[0]?.minimum_proficiency || 2));
+    setDependsOnTaskId(task.dependencies[0]?.depends_on_task_id || '');
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmitTask = async (e) => {
     e.preventDefault();
-    try {
-      const payload = {
-        project_id: parseInt(projectId),
-        task_name: taskName,
-        description,
-        complexity,
-        priority,
-        estimated_hours: parseFloat(estimatedHours),
-        status: taskStatus,
-        deadline: deadline || null,
-        assigned_developer_ids: assignedDevId ? [parseInt(assignedDevId)] : [],
-        required_skills: requiredSkillId
-          ? [{ skill_id: parseInt(requiredSkillId), minimum_proficiency: parseInt(minProficiency) }]
-          : [],
-        depends_on_task_ids: dependsOnTaskId ? [parseInt(dependsOnTaskId)] : []
-      };
+    if (!taskName || !projectId) return;
 
+    const payload = {
+      project_id: parseInt(projectId),
+      task_name: taskName,
+      description,
+      complexity,
+      priority,
+      estimated_hours: parseFloat(estimatedHours),
+      status: taskStatus,
+      deadline: deadline || null,
+      assigned_developer_ids: assignedDevId ? [parseInt(assignedDevId)] : [],
+      required_skills: requiredSkillId
+        ? [{ skill_id: parseInt(requiredSkillId), minimum_proficiency: parseInt(minProficiency) }]
+        : [],
+      depends_on_task_ids: dependsOnTaskId ? [parseInt(dependsOnTaskId)] : []
+    };
+
+    try {
       if (isEditing) {
         await api.put(`/tasks/${currentTaskId}`, payload);
+        addToast('Task updated successfully!', 'success');
       } else {
         await api.post('/tasks', payload);
+        addToast('Task created and added to pipeline!', 'success');
       }
       setIsModalOpen(false);
       fetchData();
     } catch (err) {
       console.error('Failed to save task', err);
-      alert(err.response?.data?.detail || 'Error saving task');
+      addToast(err.response?.data?.detail || 'Error saving task', 'error');
     }
   };
 
-  const handleQuickStatusChange = async (taskId, newStatus) => {
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
-      await api.put(`/tasks/${taskId}`, { status: newStatus });
-      fetchData();
+      await api.delete(`/tasks/${taskId}`);
+      addToast('Task deleted.', 'success');
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
     } catch (err) {
-      console.error('Failed to change status', err);
+      console.error('Failed to delete task', err);
+      addToast('Failed to delete task.', 'error');
     }
   };
 
-  const openQuickLogModal = (task) => {
-    setActiveTaskForLog(task);
-    setHoursSpent('2.0');
-    setLogDesc('');
-    setLogModalOpen(true);
-  };
-
-  const handleQuickLogSubmit = async (e) => {
+  const handleQuickLogTime = async (e) => {
     e.preventDefault();
     if (!activeTaskForLog || !hoursSpent) return;
     try {
       await api.post('/time-logs', {
         task_id: activeTaskForLog.id,
+        developer_id: activeTaskForLog.assigned_developers[0]?.developer_id || null,
         hours_spent: parseFloat(hoursSpent),
         description: logDesc
       });
+      addToast(`Logged ${hoursSpent}h for "${activeTaskForLog.task_name}"`, 'success');
       setLogModalOpen(false);
+      setHoursSpent('2.0');
+      setLogDesc('');
       fetchData();
     } catch (err) {
       console.error('Failed to log time', err);
+      addToast('Error logging time.', 'error');
     }
   };
 
+  // Filter Tasks
   const filteredTasks = tasks.filter((t) => {
-    const matchesSearch =
-      t.task_name.toLowerCase().includes(search.toLowerCase()) ||
-      (t.description || '').toLowerCase().includes(search.toLowerCase());
-    const matchesProject = !filterProject || t.project_id === parseInt(filterProject);
-    const matchesDev =
-      !filterDeveloper ||
-      t.assigned_developers.some((d) => d.developer_id === parseInt(filterDeveloper));
-    const matchesStatus = !filterStatus || t.status === filterStatus;
-    const matchesPriority = !filterPriority || t.priority === filterPriority;
-
-    return matchesSearch && matchesProject && matchesDev && matchesStatus && matchesPriority;
+    if (search) {
+      const matchName = t.task_name.toLowerCase().includes(search.toLowerCase());
+      const matchDesc = (t.description || '').toLowerCase().includes(search.toLowerCase());
+      if (!matchName && !matchDesc) return false;
+    }
+    if (filterProject && t.project_id !== parseInt(filterProject)) return false;
+    if (filterDeveloper && !t.assigned_developers.some((d) => d.developer_id === parseInt(filterDeveloper))) return false;
+    if (filterStatus && t.status !== filterStatus) return false;
+    if (filterPriority && t.priority !== filterPriority) return false;
+    return true;
   });
 
+  // Cell Dropdown Option Definitions
+  const statusOptions = [
+    { value: 'pending', label: 'Pending', dotColor: 'bg-slate-400' },
+    { value: 'in_progress', label: 'In Progress', dotColor: 'bg-indigo-400' },
+    { value: 'blocked', label: 'Blocked', dotColor: 'bg-rose-500' },
+    { value: 'completed', label: 'Completed', dotColor: 'bg-emerald-400' },
+  ];
+
+  const priorityOptions = [
+    { value: 'low', label: 'Low', dotColor: 'bg-slate-400' },
+    { value: 'medium', label: 'Medium', dotColor: 'bg-sky-400' },
+    { value: 'high', label: 'High', dotColor: 'bg-amber-400' },
+    { value: 'urgent', label: 'Urgent / Critical', dotColor: 'bg-rose-500' },
+  ];
+
+  const devOptions = [
+    { value: 0, label: 'Unassigned', sublabel: 'No engineer allocated' },
+    ...developers.map((d) => ({
+      value: d.id,
+      label: d.name,
+      sublabel: `${d.experience_level} • ${d.available_hours_per_week || 40}h cap`
+    }))
+  ];
+
   return (
-    <DashboardLayout title="Engineering Tasks & Assignments" onRefresh={fetchData}>
-      {/* Search and Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search tasks by title, component, or description..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {canManage && (
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm shrink-0 w-full sm:w-auto justify-center"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Create Task
-            </button>
-          )}
+    <DashboardLayout title="Task Pipeline & Scheduling" onRefresh={fetchData}>
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
+        <div>
+          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            <span>Engineering Pipeline</span>
+            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+              {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
+            </span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Click any cell (Status, Priority, Assignee) to update in real-time.
+          </p>
         </div>
 
-        {/* Filter Dropdowns */}
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-1.5 text-slate-500">
-            <Filter className="w-3.5 h-3.5" /> Filters:
-          </div>
-
-          <select
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
-            className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white"
+        {canManage && (
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition active:scale-95 border border-indigo-500/30"
           >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.project_name}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterDeveloper}
-            onChange={(e) => setFilterDeveloper(e.target.value)}
-            className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white"
-          >
-            <option value="">All Developers</option>
-            {developers.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white"
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="completed">Completed</option>
-          </select>
-
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white"
-          >
-            <option value="">All Priorities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-        </div>
+            <Plus className="w-4 h-4" />
+            <span>Create Task</span>
+          </button>
+        )}
       </div>
 
-      {/* Tasks Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Filter Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+        </div>
+
+        <select
+          value={filterProject}
+          onChange={(e) => setFilterProject(e.target.value)}
+          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.project_name}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterDeveloper}
+          onChange={(e) => setFilterDeveloper(e.target.value)}
+          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Developers</option>
+          {developers.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="completed">Completed</option>
+        </select>
+
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value)}
+          className="px-3 py-2 bg-dark-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Priorities</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical / Urgent</option>
+        </select>
+      </div>
+
+      {/* Main Interactive Table */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3">Task Name</th>
-                <th className="px-6 py-3">Project</th>
-                <th className="px-6 py-3">Assigned To</th>
-                <th className="px-6 py-3">Complexity & Priority</th>
-                <th className="px-6 py-3 text-right">Est / Logged / Rem</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3 text-center">Actions</th>
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">Task & Project</th>
+                <th className="py-2.5 px-3">Status (Click to change)</th>
+                <th className="py-2.5 px-3">Priority (Click)</th>
+                <th className="py-2.5 px-3">Complexity</th>
+                <th className="py-2.5 px-3">Effort (Est / Rem)</th>
+                <th className="py-2.5 px-3">Assignee (Click to switch)</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-800/60">
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-xs text-slate-400">
-                    No tasks match the active filters.
+                  <td colSpan={7} className="py-8 text-center text-slate-500 text-xs">
+                    No matching tasks found.
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-900 leading-tight">{t.task_name}</div>
-                      {t.dependencies.length > 0 && (
-                        <div className="text-[10px] text-rose-500 mt-1 flex items-center gap-1 font-medium">
-                          <span>Blocked on:</span> {t.dependencies.map((d) => d.task_name).join(', ')}
-                        </div>
-                      )}
-                      {t.deadline && (
-                        <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> Due {t.deadline}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4 text-xs font-medium text-slate-700">
-                      {t.project_name || 'Unassigned'}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      {t.assigned_developers.length === 0 ? (
-                        <span className="text-xs text-slate-400 italic">Unassigned</span>
-                      ) : (
-                        <div className="space-y-1">
-                          {t.assigned_developers.map((d) => (
-                            <div key={d.developer_id} className="flex items-center gap-1.5 text-xs font-medium text-slate-800">
-                              <span className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center font-bold text-[10px] text-indigo-700">
-                                {d.name.charAt(0)}
-                              </span>
-                              <span>{d.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5">
-                        <ComplexityBadge complexity={t.complexity} />
-                        <PriorityBadge priority={t.priority} />
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 text-right font-mono text-xs">
-                      <div>
-                        <span className="font-bold text-slate-900">{t.remaining_hours}h</span>
-                        <span className="text-slate-400"> rem</span>
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {t.estimated_hours}h est • {t.actual_hours_logged}h logged
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <select
-                        value={t.status}
-                        onChange={(e) => handleQuickStatusChange(t.id, e.target.value)}
-                        className="text-xs font-semibold rounded-lg border border-slate-200 bg-white px-2 py-1 focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="blocked">Blocked</option>
-                        <option value="completed">Completed</option>
-                      </select>
-                    </td>
-
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => openQuickLogModal(t)}
-                          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                          title="Log hours on this task"
+                filteredTasks.map((t) => {
+                  const currentDev = t.assigned_developers[0];
+                  return (
+                    <tr key={t.id} className="hover:bg-dark-850/60 transition group">
+                      {/* Task Name & Project */}
+                      <td className="py-3 px-3 max-w-xs">
+                        <div
+                          onClick={() => canManage && handleOpenEditModal(t)}
+                          className={`font-semibold text-slate-200 truncate ${
+                            canManage ? 'cursor-pointer hover:text-indigo-400' : ''
+                          }`}
+                          title={t.task_name}
                         >
-                          <Clock className="w-3 h-3" />
-                        </button>
-                        {canManage && (
+                          {t.task_name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {t.project_name || 'General Project'}
+                        </div>
+                      </td>
+
+                      {/* 1-Click Status Cell */}
+                      <td className="py-3 px-3">
+                        <CellDropdown
+                          value={t.status}
+                          options={statusOptions}
+                          onChange={(newStatus) =>
+                            handleCellPatch(
+                              t.id,
+                              { status: newStatus },
+                              `Status updated to "${newStatus.replace('_', ' ')}"`
+                            )
+                          }
+                          renderTrigger={() => <TaskStatusBadge status={t.status} />}
+                        />
+                      </td>
+
+                      {/* 1-Click Priority Cell */}
+                      <td className="py-3 px-3">
+                        <CellDropdown
+                          value={t.priority}
+                          options={priorityOptions}
+                          disabled={!canManage}
+                          onChange={(newPrio) =>
+                            handleCellPatch(t.id, { priority: newPrio }, `Priority updated to "${newPrio}"`)
+                          }
+                          renderTrigger={() => <PriorityBadge priority={t.priority} />}
+                        />
+                      </td>
+
+                      {/* Complexity */}
+                      <td className="py-3 px-3">
+                        <ComplexityBadge complexity={t.complexity} />
+                      </td>
+
+                      {/* Effort Numbers */}
+                      <td className="py-3 px-3 font-mono text-slate-300">
+                        <div>
+                          <span className="font-bold text-white">{t.remaining_hours}h</span>
+                          <span className="text-slate-500 text-[11px]"> / {t.estimated_hours}h</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          Logged: {t.actual_hours_logged}h
+                        </div>
+                      </td>
+
+                      {/* 1-Click Developer Assignee Cell */}
+                      <td className="py-3 px-3">
+                        <CellDropdown
+                          value={currentDev?.developer_id || 0}
+                          options={devOptions}
+                          disabled={!canManage}
+                          onChange={(newDevId) =>
+                            handleCellPatch(
+                              t.id,
+                              { assigned_developer_id: newDevId },
+                              newDevId > 0 ? 'Task reassigned successfully!' : 'Task unassigned.'
+                            )
+                          }
+                          renderTrigger={() => (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-dark-950/80 border border-slate-800 text-slate-200 hover:border-slate-700 transition">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                              <span className="truncate max-w-[120px] font-semibold text-[11px]">
+                                {currentDev?.name || 'Unassigned'}
+                              </span>
+                              {canManage && <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />}
+                            </div>
+                          )}
+                        />
+                      </td>
+
+                      {/* Action Buttons */}
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => openEditModal(t)}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition"
+                            type="button"
+                            onClick={() => {
+                              setActiveTaskForLog(t);
+                              setHoursSpent('2.0');
+                              setLogDesc('');
+                              setLogModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-dark-800 transition"
+                            title="Log Hours"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Clock className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+
+                          {canManage && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(t)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 transition"
+                                title="Edit Full Task"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTask(t.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                                title="Delete Task"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Create / Edit Task Modal with LIVE ML PREDICTIONS */}
+      {/* Create / Edit Task Modal with ML Predictor */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={isEditing ? `Edit Task • ${taskName}` : 'Create New Engineering Task'}
-        maxWidth="max-w-2xl"
+        title={isEditing ? 'Edit Task Specifications' : 'Create New Engineering Task'}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmitTask} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Task Title</label>
+            <input
+              type="text"
+              required
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              placeholder="e.g. Implement Distributed Lock Manager"
+              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Project
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Project</label>
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               >
                 {projects.map((p) => (
@@ -451,61 +553,32 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Assigned Developer
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Developer</label>
               <select
                 value={assignedDevId}
                 onChange={(e) => setAssignedDevId(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">Unassigned</option>
                 {developers.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.team_name || 'No team'})</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.experience_level})
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Task Name / Title
-            </label>
-            <input
-              type="text"
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-              placeholder="e.g. Implement Distributed Lock Manager"
-              className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Description & Acceptance Criteria
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows="2"
-              placeholder="Technical specifics and deliverables..."
-              className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Complexity
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Complexity</label>
               <select
                 value={complexity}
                 onChange={(e) => {
                   setComplexity(e.target.value);
                   triggerMLPrediction(e.target.value, priority, estimatedHours);
                 }}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 capitalize"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="easy">Easy (1.0x)</option>
                 <option value="medium">Medium (1.2x)</option>
@@ -515,118 +588,79 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Priority
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => {
                   setPriority(e.target.value);
                   triggerMLPrediction(complexity, e.target.value, estimatedHours);
                 }}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 capitalize"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-                <option value="critical">Critical</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Estimated Hours
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Estimated Hours</label>
               <input
                 type="number"
                 step="0.5"
                 min="0.5"
+                max="200"
                 value={estimatedHours}
                 onChange={(e) => {
                   setEstimatedHours(e.target.value);
                   triggerMLPrediction(complexity, priority, e.target.value);
                 }}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
           </div>
 
-          {/* Machine Learning Effort Predictor Callout Box */}
-          {mlPrediction && (
-            <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-xs space-y-1.5">
-              <div className="flex items-center justify-between font-bold text-indigo-900">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                  Random Forest ML Effort Prediction
+          {/* Machine Learning Prediction Telemetry Box */}
+          <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div>
+                <span className="font-bold text-indigo-300">Random Forest Effort Estimate: </span>
+                <span className="font-mono text-white font-bold">
+                  {predicting
+                    ? 'Computing regression...'
+                    : mlPrediction
+                    ? `${mlPrediction.predicted_actual_hours}h`
+                    : `${estimatedHours}h baseline`}
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-extrabold ${
-                  mlPrediction.risk_level === 'high'
-                    ? 'bg-rose-100 text-rose-700'
-                    : mlPrediction.risk_level === 'moderate'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'
-                }`}>
-                  Risk: {mlPrediction.risk_level}
-                </span>
-              </div>
-              <div className="text-slate-700 flex items-center justify-between">
-                <span>
-                  Predicted actual completion time:{' '}
-                  <strong className="text-indigo-950 font-mono text-sm">{mlPrediction.predicted_actual_hours} hrs</strong>
-                  <span className="text-slate-500 ml-1">
-                    ({mlPrediction.variance_hours > 0 ? `+${mlPrediction.variance_hours}` : mlPrediction.variance_hours}h vs estimate)
-                  </span>
-                </span>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  95% CI: [{mlPrediction.confidence_interval_hours[0]}h - {mlPrediction.confidence_interval_hours[1]}h]
-                </span>
-              </div>
-              <div className="text-[10px] text-slate-400">
-                Trained Random Forest Regressor evaluates complexity risk, priority factor, and skill mismatch penalties.
+                {mlPrediction && (
+                  <div className="text-[10px] text-slate-400">
+                    Confidence: {(mlPrediction.confidence_score * 100).toFixed(0)}% • Model: Random Forest Regressor
+                  </div>
+                )}
               </div>
             </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Target Deadline
-              </label>
-              <input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Initial Status
-              </label>
-              <select
-                value={taskStatus}
-                onChange={(e) => setTaskStatus(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+            {mlPrediction && (
+              <button
+                type="button"
+                onClick={() => setEstimatedHours(String(mlPrediction.predicted_actual_hours))}
+                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] transition shadow"
               >
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="blocked">Blocked</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
+                Apply AI Hours
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Required Technical Skill
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Required Skill</label>
               <select
                 value={requiredSkillId}
                 onChange={(e) => setRequiredSkillId(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">None Required</option>
                 {skills.map((s) => (
@@ -636,34 +670,38 @@ export const TasksPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Minimum Proficiency (1-5)
-              </label>
-              <select
-                value={minProficiency}
-                onChange={(e) => setMinProficiency(e.target.value)}
-                className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="1">1 (Basic Knowledge)</option>
-                <option value="2">2 (Elementary)</option>
-                <option value="3">3 (Working Proficiency)</option>
-                <option value="4">4 (Advanced)</option>
-                <option value="5">5 (Expert)</option>
-              </select>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Deadline</label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Description (Optional)</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Detailed architecture notes or ticket requirements..."
+              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition"
             >
               {isEditing ? 'Save Changes' : 'Create Task'}
             </button>
@@ -671,17 +709,15 @@ export const TasksPage = () => {
         </form>
       </Modal>
 
-      {/* Quick Log Time Modal */}
+      {/* Quick Time Log Modal */}
       <Modal
         isOpen={logModalOpen}
         onClose={() => setLogModalOpen(false)}
-        title={`Log Hours Spent • ${activeTaskForLog?.task_name}`}
+        title={`Log Hours: ${activeTaskForLog?.task_name}`}
       >
-        <form onSubmit={handleQuickLogSubmit} className="space-y-4">
+        <form onSubmit={handleQuickLogTime} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Hours Logged
-            </label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Hours Spent</label>
             <input
               type="number"
               step="0.5"
@@ -689,35 +725,33 @@ export const TasksPage = () => {
               max="24"
               value={hoursSpent}
               onChange={(e) => setHoursSpent(e.target.value)}
-              className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
               required
+              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Work Description
-            </label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Work Description (Optional)</label>
             <textarea
+              rows={2}
               value={logDesc}
               onChange={(e) => setLogDesc(e.target.value)}
-              rows="3"
-              placeholder="Details on code commits or debugging done..."
-              className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. Profiling database indexes & query optimization"
+              className="w-full px-3 py-2 bg-dark-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={() => setLogModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition"
             >
               Record Time Log
             </button>

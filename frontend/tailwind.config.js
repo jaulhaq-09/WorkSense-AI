@@ -6,6 +6,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
       colors: {
         brand: {
           50: '#eef2ff',
@@ -19,6 +23,14 @@ export default {
           800: '#3730a3',
           900: '#312e81',
           950: '#1e1b4b',
+        },
+        dark: {
+          950: '#080C14',
+          900: '#0D1424',
+          850: '#121C30',
+          800: '#192640',
+          750: '#213150',
+          700: '#2A3C60',
         },
         slate: {
           850: '#151f32',

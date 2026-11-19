@@ -5,16 +5,18 @@ import {
   XCircle,
   ArrowRight,
   TrendingDown,
-  TrendingUp,
   Award,
   Layers,
   RefreshCw,
   AlertCircle,
+  Clock,
+  ShieldCheck,
   Check
 } from 'lucide-react';
 import api from '../services/api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export const RecommendationsPage = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -22,9 +24,9 @@ export const RecommendationsPage = () => {
   const [generating, setGenerating] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [feedbackMsg, setFeedbackMsg] = useState('');
 
   const { role } = useAuth();
+  const { addToast } = useToast();
   const canApprove = role === 'admin' || role === 'project_manager';
 
   const fetchRecommendations = async () => {
@@ -34,6 +36,7 @@ export const RecommendationsPage = () => {
       setRecommendations(res.data);
     } catch (err) {
       console.error('Failed to load recommendations', err);
+      addToast('Failed to load redistribution recommendations.', 'error');
     } finally {
       setLoading(false);
     }
@@ -47,11 +50,11 @@ export const RecommendationsPage = () => {
     try {
       setGenerating(true);
       const res = await api.post('/recommendations/generate');
-      setFeedbackMsg(res.data.message || 'Scanned team capacity and generated new redistribution plans.');
+      addToast(res.data.message || 'Scanned team capacity and generated new redistribution plans.', 'success');
       fetchRecommendations();
-      setTimeout(() => setFeedbackMsg(''), 4000);
     } catch (err) {
       console.error('Failed to generate recommendations', err);
+      addToast('Error generating redistribution plans.', 'error');
     } finally {
       setGenerating(false);
     }
@@ -60,13 +63,12 @@ export const RecommendationsPage = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoadingId(id);
-      const res = await api.post(`/recommendations/${id}/approve`);
-      setFeedbackMsg('Task redistribution approved! Task reassigned and workloads recalculated.');
+      await api.post(`/recommendations/${id}/approve`);
+      addToast('Task redistribution approved! Reassigned and recalculated.', 'success');
       fetchRecommendations();
-      setTimeout(() => setFeedbackMsg(''), 4000);
     } catch (err) {
       console.error('Failed to approve recommendation', err);
-      alert(err.response?.data?.detail || 'Error approving recommendation');
+      addToast(err.response?.data?.detail || 'Error approving transfer.', 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -76,12 +78,11 @@ export const RecommendationsPage = () => {
     try {
       setActionLoadingId(id);
       await api.post(`/recommendations/${id}/reject`);
-      setFeedbackMsg('Recommendation rejected. Task assignment remained unchanged.');
+      addToast('Recommendation rejected. Assignment remains unchanged.', 'warning');
       fetchRecommendations();
-      setTimeout(() => setFeedbackMsg(''), 4000);
     } catch (err) {
       console.error('Failed to reject recommendation', err);
-      alert(err.response?.data?.detail || 'Error rejecting recommendation');
+      addToast(err.response?.data?.detail || 'Error rejecting transfer.', 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -94,17 +95,17 @@ export const RecommendationsPage = () => {
 
   return (
     <DashboardLayout title="AI Task Redistribution Cockpit" onRefresh={fetchRecommendations}>
-      {/* Header and Generator Bar */}
-      <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="space-y-1 text-center md:text-left">
-          <div className="flex items-center justify-center md:justify-start gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            Intelligent Capacity Balancing Engine
+      {/* Top Banner */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-dark-900/80 border border-slate-800 shadow-xl backdrop-blur-md">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold text-white tracking-tight">Workload Rebalancing Engine</h2>
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              OPTIMIZER
+            </span>
           </div>
-          <h2 className="text-xl font-extrabold tracking-tight">AI-Assisted Task Redistribution</h2>
-          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-            Identifies overloaded engineers, checks required technical skill matrices, simulates projected post-assignment
-            utilization, and suggests balanced redistribution with human-in-the-loop managerial approval.
+          <p className="text-xs text-slate-400 mt-1 max-w-xl">
+            Detects overloaded engineers and pairs tasks with teammates possessing matching skills and available hours.
           </p>
         </div>
 
@@ -112,158 +113,159 @@ export const RecommendationsPage = () => {
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shadow-lg shadow-indigo-500/30 transition shrink-0 active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 active:scale-95 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition disabled:opacity-50 border border-indigo-500/30"
           >
-            <RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Scanning Capacity...' : 'Scan & Generate Plans'}
+            <Sparkles className={`w-3.5 h-3.5 ${generating ? 'animate-spin' : ''}`} />
+            <span>{generating ? 'Scanning Capacity...' : 'Scan & Rebalance Workload'}</span>
           </button>
         )}
       </div>
 
-      {feedbackMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{feedbackMsg}</span>
-        </div>
-      )}
-
-      {/* Status Filter Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2">
-          {['all', 'pending', 'approved', 'rejected'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setFilterStatus(st)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition ${
-                filterStatus === st
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-              }`}
-            >
-              {st} ({recommendations.filter((r) => st === 'all' || r.status === st).length})
-            </button>
-          ))}
-        </div>
-        <span className="text-xs text-slate-400 font-medium">
-          Manager approval required before database task reassignment occurs.
-        </span>
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        {['all', 'pending', 'applied', 'rejected'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setFilterStatus(tab)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition ${
+              filterStatus === tab
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-dark-800'
+            }`}
+          >
+            {tab}
+            <span className="ml-1.5 text-[10px] opacity-75 font-mono">
+              ({recommendations.filter((r) => tab === 'all' || r.status === tab).length})
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Recommendations Listing */}
-      <div className="space-y-4">
-        {filteredRecs.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-            <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-            <h3 className="text-sm font-bold text-slate-800">No Pending Redistribution Required</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              Workloads are currently well-balanced or all redistribution recommendations have been processed.
-              Click "Scan & Generate Plans" to trigger a fresh engine evaluation.
-            </p>
-          </div>
-        ) : (
-          filteredRecs.map((rec) => {
+      {/* Recommendations Grid */}
+      {loading ? (
+        <div className="py-16 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <span>Evaluating team distribution...</span>
+        </div>
+      ) : filteredRecs.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl bg-dark-900/40 border border-slate-800">
+          <ShieldCheck className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+          <h3 className="text-sm font-bold text-white mb-1">Team Workload is Well Balanced</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+            No critical overload or severe imbalance detected. If you add heavy tasks or team bandwidth shifts, click Scan & Rebalance.
+          </p>
+          <button
+            onClick={handleGenerate}
+            className="px-4 py-2 rounded-xl bg-dark-800 hover:bg-dark-750 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+          >
+            Run Fresh Imbalance Scan
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredRecs.map((rec) => {
             const isPending = rec.status === 'pending';
-            const isApproved = rec.status === 'approved';
+            const isApplied = rec.status === 'applied';
             const isRejected = rec.status === 'rejected';
 
             return (
               <div
                 key={rec.id}
-                className={`bg-white rounded-xl border p-6 shadow-sm transition ${
+                className={`p-5 rounded-2xl bg-dark-900/80 border transition-all duration-200 backdrop-blur-md shadow-xl ${
                   isPending
-                    ? 'border-indigo-200 hover:border-indigo-300'
-                    : isApproved
-                    ? 'border-emerald-200 bg-emerald-50/10'
-                    : 'border-slate-200 opacity-60'
+                    ? 'border-indigo-500/30 hover:border-indigo-500/60'
+                    : isApplied
+                    ? 'border-emerald-500/30 opacity-85'
+                    : 'border-slate-800 opacity-60'
                 }`}
               >
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                  {/* Task & Transfer Flow */}
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider bg-indigo-100 text-indigo-700">
-                        {rec.project_name || 'Project Work'}
+                  {/* Left: Reassignment Graphic */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-white">{rec.task_name}</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-950 text-slate-400 border border-slate-800">
+                        Task #{rec.task_id}
                       </span>
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        isApproved
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : isRejected
-                          ? 'bg-slate-100 text-slate-600'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        Status: {rec.status}
-                      </span>
+                      {isApplied && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Applied
+                        </span>
+                      )}
+                      {isRejected && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                          Rejected
+                        </span>
+                      )}
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-900 leading-snug">
-                      {rec.task_name}
-                    </h3>
-
-                    {/* Developer transfer pill */}
-                    <div className="flex items-center gap-3 pt-1 text-xs">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                        <span>{rec.from_developer_name}</span>
-                        <span className="text-[10px] text-rose-500 font-normal">(Current • Overloaded)</span>
+                    {/* From -> To Transfer Route */}
+                    <div className="flex items-center gap-3 my-3">
+                      {/* From Dev */}
+                      <div className="flex items-center gap-2 p-2 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-rose-200">{rec.from_developer_name}</div>
+                          <div className="text-[10px] text-rose-300/70 font-mono">Overloaded</div>
+                        </div>
                       </div>
 
-                      <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span>{rec.suggested_developer_name}</span>
-                        <span className="text-[10px] text-emerald-500 font-normal">(Suggested • Available)</span>
+                      <div className="flex items-center text-slate-500 px-1">
+                        <ArrowRight className="w-4 h-4 text-indigo-400" />
                       </div>
+
+                      {/* To Dev */}
+                      <div className="flex items-center gap-2 p-2 px-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-cyan-200">{rec.suggested_developer_name}</div>
+                          <div className="text-[10px] text-cyan-300/70 font-mono">Available Capacity</div>
+                        </div>
+                      </div>
+
+                      {/* Skill Match Badge */}
+                      {rec.skill_match_percentage && (
+                        <div className="hidden sm:flex items-center gap-1.5 p-2 px-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold text-indigo-300">
+                          <Award className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{rec.skill_match_percentage}% Skill Match</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Rationale Text */}
-                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">
+                    {/* AI Reasoning */}
+                    <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
                       {rec.recommendation_reason}
                     </p>
                   </div>
 
-                  {/* Actions Column */}
+                  {/* Right: Actions */}
                   {isPending && canApprove && (
                     <div className="flex items-center gap-2 shrink-0 self-end lg:self-center">
                       <button
+                        type="button"
+                        disabled={actionLoadingId === rec.id}
                         onClick={() => handleReject(rec.id)}
-                        disabled={actionLoadingId === rec.id}
-                        className="flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-50"
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-dark-800 border border-slate-700/80 transition"
                       >
-                        <XCircle className="w-4 h-4 text-slate-400" />
-                        Reject
+                        Decline
                       </button>
-
                       <button
-                        onClick={() => handleApprove(rec.id)}
+                        type="button"
                         disabled={actionLoadingId === rec.id}
-                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm active:scale-95 disabled:opacity-50"
+                        onClick={() => handleApprove(rec.id)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition active:scale-95 border border-emerald-500/30"
                       >
-                        <Check className="w-4 h-4" />
-                        {actionLoadingId === rec.id ? 'Reassigning...' : 'Approve Reassignment'}
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Approve Transfer</span>
                       </button>
-                    </div>
-                  )}
-
-                  {isApproved && (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 shrink-0">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      Reassignment Executed
-                    </div>
-                  )}
-
-                  {isRejected && (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shrink-0">
-                      <XCircle className="w-4 h-4 text-slate-400" />
-                      Proposal Rejected
                     </div>
                   )}
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </DashboardLayout>
   );
 };

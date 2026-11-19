@@ -11,7 +11,9 @@ import {
   ShieldAlert,
   ChevronRight,
   Sparkles,
-  Info
+  Info,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import {
   BarChart,
@@ -21,12 +23,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line
+  ReferenceLine,
+  Cell
 } from 'recharts';
 import api from '../services/api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -36,7 +34,6 @@ import { Modal } from '../components/Modal';
 export const DashboardPage = () => {
   const [data, setData] = useState(null);
   const [developers, setDevelopers] = useState([]);
-  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDev, setSelectedDev] = useState(null);
   const navigate = useNavigate();
@@ -44,14 +41,12 @@ export const DashboardPage = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [overviewRes, devsRes, historyRes] = await Promise.all([
+      const [overviewRes, devsRes] = await Promise.all([
         api.get('/workload/overview'),
         api.get('/workload/developers'),
-        api.get('/workload/history?limit=30')
       ]);
       setData(overviewRes.data);
       setDevelopers(devsRes.data);
-      setHistory(historyRes.data);
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
@@ -65,11 +60,11 @@ export const DashboardPage = () => {
 
   if (loading || !data) {
     return (
-      <DashboardLayout title="Operational Dashboard">
+      <DashboardLayout title="Workload Cockpit">
         <div className="flex h-96 items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-semibold text-slate-500">Calculating workload metrics...</span>
+            <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold text-slate-400">Loading workload telemetry...</span>
           </div>
         </div>
       </DashboardLayout>
@@ -78,264 +73,326 @@ export const DashboardPage = () => {
 
   const { summary, analysis } = data;
 
-  // Chart data formatting
-  const devChartData = developers.map((d) => ({
+  const chartData = developers.map((d) => ({
     name: d.name.split(' ')[0],
-    utilization: d.utilization_percentage,
-    remaining_hours: d.weighted_remaining_effort,
+    fullName: d.name,
+    utilization: Math.round(d.utilization_percentage),
+    remaining_hours: Math.round(d.weighted_remaining_effort),
     capacity: d.available_hours,
     status: d.workload_status
   }));
 
-  const taskStatusData = [
-    { name: 'In Progress', value: summary.in_progress_tasks || 0, color: '#3b82f6' },
-    { name: 'Pending', value: summary.pending_tasks || 0, color: '#94a3b8' },
-    { name: 'Blocked', value: summary.blocked_tasks || 0, color: '#ef4444' },
-    { name: 'Completed', value: summary.completed_tasks || 0, color: '#10b981' },
-  ].filter(item => item.value > 0);
+  const getBarColor = (status) => {
+    switch (status) {
+      case 'overloaded': return '#f43f5e';
+      case 'high': return '#f59e0b';
+      case 'balanced': return '#10b981';
+      case 'underutilized': return '#06b6d4';
+      default: return '#6366f1';
+    }
+  };
 
   return (
-    <DashboardLayout title="System Workload Dashboard" onRefresh={fetchDashboardData}>
-      {/* Imbalance Alert Banner */}
+    <DashboardLayout title="Executive Workload Cockpit" onRefresh={fetchDashboardData}>
+      {/* Actionable Overload Alert */}
       {analysis.imbalance_detected && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 border-l-4 border-rose-500 rounded-xl p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <span>Workload Imbalance Detected Across Engineering Team</span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
-                    Variance: {analysis.team_variance.toFixed(1)}%²
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-slate-600 space-y-1">
-                  {analysis.explanations.slice(0, 2).map((exp, idx) => (
-                    <p key={idx}>• {exp}</p>
-                  ))}
-                </div>
-              </div>
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl shadow-rose-500/5 animate-in fade-in">
+          <div className="flex items-start gap-3.5">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+              <ShieldAlert className="w-5 h-5" />
             </div>
-            <button
-              onClick={() => navigate('/recommendations')}
-              className="shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm ml-4"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              View Recommendations
-            </button>
+            <div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                <span>Severe Workload Imbalance Detected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  {analysis.overloaded_developers?.length || 1} Overloaded
+                </span>
+              </div>
+              <p className="text-xs text-rose-200/80 mt-1 max-w-2xl leading-relaxed">
+                {analysis.explanation || 'Significant variance detected across developer capacities. Key engineers are overloaded while others have idle bandwidth.'}
+              </p>
+            </div>
           </div>
+
+          <button
+            onClick={() => navigate('/recommendations')}
+            className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition active:scale-95"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Rebalance Workload</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
-      {/* Metric Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* Total Developers */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Developers</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1 flex items-baseline justify-between">
-            {summary.total_developers}
-            <Users className="w-4 h-4 text-slate-400" />
+      {/* KPI Ribbons */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 backdrop-blur-md shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Team Capacity</span>
+            <Users className="w-4 h-4 text-indigo-400" />
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Active team capacity</div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
+            {summary.total_capacity_hours}
+            <span className="text-xs text-slate-400 font-sans font-normal ml-1">h/wk</span>
+          </div>
+          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span>{summary.active_developers} active engineers</span>
+          </div>
         </div>
 
-        {/* Overloaded */}
-        <div className="bg-white rounded-xl p-4 border border-rose-200 shadow-sm bg-rose-50/20">
-          <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Overloaded</div>
-          <div className="text-2xl font-bold text-rose-700 mt-1 flex items-baseline justify-between">
-            {summary.overloaded_count}
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 backdrop-blur-md shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Active Workload</span>
+            <Layers className="w-4 h-4 text-violet-400" />
           </div>
-          <div className="text-[11px] text-rose-600 mt-1">&gt; 80% capacity utilization</div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
+            {summary.total_weighted_effort}
+            <span className="text-xs text-slate-400 font-sans font-normal ml-1">h eff</span>
+          </div>
+          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+            <span>{summary.total_tasks} active tasks</span>
+          </div>
         </div>
 
-        {/* Balanced */}
-        <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm bg-emerald-50/20">
-          <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Balanced</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1 flex items-baseline justify-between">
-            {summary.balanced_count}
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 backdrop-blur-md shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Team Utilization</span>
+            <Briefcase className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="text-[11px] text-emerald-600 mt-1">40% - 80% optimal zone</div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
+            {summary.average_utilization_percentage}%
+          </div>
+          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            <span>Target benchmark: 70–80%</span>
+          </div>
         </div>
 
-        {/* Underutilized */}
-        <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm bg-amber-50/20">
-          <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Underutilized</div>
-          <div className="text-2xl font-bold text-amber-700 mt-1 flex items-baseline justify-between">
-            {summary.underutilized_count}
-            <TrendingDown className="w-4 h-4 text-amber-500" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 backdrop-blur-md shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-2">
+            <span>Load Imbalance</span>
+            <AlertTriangle className={`w-4 h-4 ${analysis.imbalance_detected ? 'text-rose-400' : 'text-emerald-400'}`} />
           </div>
-          <div className="text-[11px] text-amber-600 mt-1">&lt; 40% capacity available</div>
-        </div>
-
-        {/* Average Utilization */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Utilization</div>
-          <div className="text-2xl font-bold text-indigo-600 mt-1">
-            {summary.average_utilization.toFixed(1)}%
+          <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
+            ±{analysis.workload_variance || 0}%
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Std Dev: {summary.team_stdev.toFixed(1)}%</div>
-        </div>
-
-        {/* Active Projects & Tasks */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Tasks</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1 flex items-baseline justify-between">
-            {summary.total_tasks}
-            <Briefcase className="w-4 h-4 text-slate-400" />
+          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${analysis.imbalance_detected ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+            <span className={analysis.imbalance_detected ? 'text-rose-300 font-semibold' : 'text-emerald-300'}>
+              {analysis.imbalance_detected ? 'High disparity' : 'Healthy balance'}
+            </span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">{summary.active_projects} active projects</div>
         </div>
       </div>
 
-      {/* Charts Grid */}
+      {/* Main Charts & Workload Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Developer Workload Utilization Chart */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        {/* Capacity vs Workload Bar Chart */}
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 shadow-xl backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Developer Capacity Utilization</h3>
-              <p className="text-xs text-slate-500">Weighted remaining effort relative to 40h weekly capacity</p>
+              <h3 className="text-sm font-bold text-white tracking-tight">Developer Capacity Utilization (%)</h3>
+              <p className="text-xs text-slate-400">Threshold: Red &gt;100% (Overload), Green 40–80% (Balanced)</p>
             </div>
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-rose-500" /> Overloaded (&gt;80%)</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Balanced</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-amber-500" /> Underutilized (&lt;40%)</span>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="flex items-center gap-1 text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> Overload
+              </span>
+              <span className="flex items-center gap-1 text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Balanced
+              </span>
+              <span className="flex items-center gap-1 text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500" /> Idle
+              </span>
             </div>
           </div>
+
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={devChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis unit="%" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} domain={[0, 140]} />
                 <Tooltip
-                  formatter={(val, name, item) => [`${val.toFixed(1)}%`, 'Utilization']}
-                  contentStyle={{ backgroundColor: '#0f172a', borderRadius: '8px', color: '#fff', fontSize: '12px', border: 'none' }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const d = payload[0].payload;
+                      return (
+                        <div className="p-3 rounded-xl bg-dark-950 border border-slate-700 shadow-xl text-xs space-y-1">
+                          <div className="font-bold text-white">{d.fullName}</div>
+                          <div className="text-slate-300">Utilization: <span className="font-bold font-mono">{d.utilization}%</span></div>
+                          <div className="text-slate-400">Effort: <span className="font-mono">{d.remaining_hours}h</span> / {d.capacity}h cap</div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
+                <ReferenceLine y={100} stroke="#f43f5e" strokeDasharray="4 4" label={{ value: '100% Overload Cap', fill: '#f43f5e', fontSize: 10, position: 'insideTopRight' }} />
                 <Bar dataKey="utilization" radius={[6, 6, 0, 0]}>
-                  {devChartData.map((entry, index) => {
-                    let fill = '#10b981';
-                    if (entry.status === 'overloaded' || entry.status === 'high') fill = '#f43f5e';
-                    else if (entry.status === 'underutilized') fill = '#f59e0b';
-                    return <Cell key={`cell-${index}`} fill={fill} />;
-                  })}
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getBarColor(entry.status)} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Task Status Distribution Donut Chart */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-sm font-bold text-slate-900">Task Execution Status</h3>
-            <p className="text-xs text-slate-500">Distribution of active and blocked sprint items</p>
+        {/* Task Health Breakdown */}
+        <div className="p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 shadow-xl backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight mb-1">Task Pipeline Status</h3>
+            <p className="text-xs text-slate-400 mb-4">Real-time status of all scheduled work</p>
+
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400" /> In Progress
+                  </span>
+                  <span className="font-mono text-slate-200">{summary.in_progress_tasks || 0} tasks</span>
+                </div>
+                <div className="w-full bg-dark-950 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-indigo-500 h-1.5 rounded-full"
+                    style={{ width: `${((summary.in_progress_tasks || 0) / (summary.total_tasks || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" /> Pending
+                  </span>
+                  <span className="font-mono text-slate-200">{summary.pending_tasks || 0} tasks</span>
+                </div>
+                <div className="w-full bg-dark-950 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-slate-500 h-1.5 rounded-full"
+                    style={{ width: `${((summary.pending_tasks || 0) / (summary.total_tasks || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-rose-300 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Blocked (At Risk)
+                  </span>
+                  <span className="font-mono text-rose-300">{summary.blocked_tasks || 0} tasks</span>
+                </div>
+                <div className="w-full bg-dark-950 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-rose-500 h-1.5 rounded-full"
+                    style={{ width: `${((summary.blocked_tasks || 0) / (summary.total_tasks || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-emerald-300 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" /> Completed
+                  </span>
+                  <span className="font-mono text-slate-200">{summary.completed_tasks || 0} tasks</span>
+                </div>
+                <div className="w-full bg-dark-950 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-1.5 rounded-full"
+                    style={{ width: `${((summary.completed_tasks || 0) / (summary.total_tasks || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="h-64 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={taskStatusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {taskStatusData.map((entry, index) => (
-                    <Cell key={`slice-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val, name) => [`${val} tasks`, name]}
-                  contentStyle={{ backgroundColor: '#0f172a', borderRadius: '8px', color: '#fff', fontSize: '12px', border: 'none' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+
+          <div className="mt-4 pt-3 border-t border-slate-800">
+            <button
+              onClick={() => navigate('/tasks')}
+              className="w-full py-2 px-3 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <span>Manage Task Pipeline</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Developer Workload Master Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      {/* Developer Roster Workload Table */}
+      <div className="p-5 rounded-2xl bg-dark-900/80 border border-slate-800/80 shadow-xl backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-800 gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Developer Workload Distribution Table</h3>
-            <p className="text-xs text-slate-500">Granular calculation showing remaining effort, complexity weights, and utilization</p>
+            <h3 className="text-sm font-bold text-white tracking-tight">Active Engineering Roster</h3>
+            <p className="text-xs text-slate-400">Live breakdown of assigned cognitive loads</p>
           </div>
           <button
-            onClick={() => navigate('/analytics')}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition"
+            onClick={() => navigate('/developers')}
+            className="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 transition"
           >
-            Deep Analytics <ArrowUpRight className="w-3.5 h-3.5" />
+            Manage Capacities <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3">Developer</th>
-                <th className="px-6 py-3">Team</th>
-                <th className="px-6 py-3 text-center">Active Tasks</th>
-                <th className="px-6 py-3 text-right">Weighted Effort</th>
-                <th className="px-6 py-3 text-right">Available Capacity</th>
-                <th className="px-6 py-3 text-right">Utilization %</th>
-                <th className="px-6 py-3">Workload Status</th>
-                <th className="px-6 py-3 text-center">Action</th>
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">Developer</th>
+                <th className="py-2.5 px-3">Weekly Cap</th>
+                <th className="py-2.5 px-3">Active Tickets</th>
+                <th className="py-2.5 px-3">Weighted Effort</th>
+                <th className="py-2.5 px-3">Utilization</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-800/60">
               {developers.map((dev) => (
-                <tr key={dev.developer_id} className="hover:bg-slate-50/80 transition">
-                  <td className="px-6 py-4 font-semibold text-slate-900">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-700">
-                        {dev.name.charAt(0)}
+                <tr
+                  key={dev.id}
+                  onClick={() => setSelectedDev(dev)}
+                  className="hover:bg-dark-850/60 transition cursor-pointer group"
+                >
+                  <td className="py-3 px-3">
+                    <div className="font-semibold text-slate-200 group-hover:text-indigo-300 transition">
+                      {dev.name}
+                    </div>
+                    <div className="text-[11px] text-slate-500 capitalize">{dev.experience_level} Engineer</div>
+                  </td>
+                  <td className="py-3 px-3 font-mono text-slate-300">{dev.available_hours}h</td>
+                  <td className="py-3 px-3 font-mono text-slate-300">{dev.total_active_tasks}</td>
+                  <td className="py-3 px-3 font-mono text-slate-300">{dev.weighted_remaining_effort}h</td>
+                  <td className="py-3 px-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 bg-dark-950 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className={`h-1.5 rounded-full ${
+                            dev.utilization_percentage > 100
+                              ? 'bg-rose-500'
+                              : dev.utilization_percentage >= 80
+                              ? 'bg-amber-500'
+                              : dev.utilization_percentage >= 40
+                              ? 'bg-emerald-500'
+                              : 'bg-cyan-500'
+                          }`}
+                          style={{ width: `${Math.min(100, dev.utilization_percentage)}%` }}
+                        />
                       </div>
-                      <div>
-                        <div>{dev.name}</div>
-                        <div className="text-[11px] text-slate-400 capitalize">{dev.experience_level} Engineer</div>
-                      </div>
+                      <span className="font-mono text-slate-300">{dev.utilization_percentage.toFixed(1)}%</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-600">{dev.team_name}</td>
-                  <td className="px-6 py-4 text-center font-medium">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 font-bold">
-                      {dev.total_active_tasks}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono font-medium text-slate-900">
-                    {dev.weighted_remaining_effort.toFixed(1)} hrs
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-slate-500">
-                    {dev.available_hours.toFixed(1)} hrs
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className={`font-mono font-bold text-sm ${
-                      dev.workload_status === 'overloaded' || dev.workload_status === 'high'
-                        ? 'text-rose-600'
-                        : dev.workload_status === 'underutilized'
-                        ? 'text-amber-600'
-                        : 'text-emerald-600'
-                    }`}>
-                      {dev.utilization_percentage.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
+                  <td className="py-3 px-3">
                     <WorkloadBadge status={dev.workload_status} />
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => setSelectedDev(dev)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                    >
-                      Inspect
-                    </button>
+                  <td className="py-3 px-3 text-right">
+                    <span className="text-indigo-400 group-hover:text-indigo-300 font-semibold text-[11px] inline-flex items-center gap-1">
+                      Inspect <ChevronRight className="w-3 h-3" />
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -349,69 +406,52 @@ export const DashboardPage = () => {
         <Modal
           isOpen={!!selectedDev}
           onClose={() => setSelectedDev(null)}
-          title={`Workload Breakdown • ${selectedDev.name}`}
-          maxWidth="max-w-3xl"
+          title={`Workload Profile: ${selectedDev.name}`}
         >
-          <div className="space-y-6">
-            {/* Top stats bar */}
-            <div className="grid grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div>
-                <div className="text-[10px] font-bold uppercase text-slate-400">Capacity</div>
-                <div className="text-base font-bold text-slate-800">{selectedDev.available_hours} hrs/wk</div>
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Capacity</div>
+                <div className="text-lg font-bold font-mono text-white mt-1">{selectedDev.available_hours}h / wk</div>
               </div>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-slate-400">Weighted Effort</div>
-                <div className="text-base font-bold text-slate-800">{selectedDev.weighted_remaining_effort} hrs</div>
+              <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Remaining Effort</div>
+                <div className="text-lg font-bold font-mono text-white mt-1">{selectedDev.weighted_remaining_effort}h</div>
               </div>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-slate-400">Utilization</div>
-                <div className="text-base font-bold text-indigo-600">{selectedDev.utilization_percentage}%</div>
+              <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Utilization</div>
+                <div className="text-lg font-bold font-mono text-indigo-400 mt-1">{selectedDev.utilization_percentage.toFixed(1)}%</div>
               </div>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-slate-400">Workload Score</div>
-                <div className="text-base font-bold text-slate-800">{selectedDev.workload_score} / 100</div>
+              <div className="p-3 rounded-xl bg-dark-950 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Status</div>
+                <div className="mt-1"><WorkloadBadge status={selectedDev.workload_status} /></div>
               </div>
             </div>
 
-            {/* Assigned Tasks breakdown */}
             <div>
-              <h4 className="text-xs font-bold uppercase text-slate-700 tracking-wider mb-2">
-                Active Assigned Tasks ({selectedDev.tasks.length})
-              </h4>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {selectedDev.tasks.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-3">No active tasks assigned to this developer.</p>
-                ) : (
-                  selectedDev.tasks.map((t) => (
-                    <div
-                      key={t.task_id}
-                      className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs"
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Technical Skills & Proficiency</h4>
+              <div className="flex flex-wrap gap-2">
+                {selectedDev.skills && selectedDev.skills.length > 0 ? (
+                  selectedDev.skills.map((sk) => (
+                    <span
+                      key={sk.skill_id}
+                      className="px-2.5 py-1 rounded-lg bg-dark-950 border border-slate-800 text-xs text-slate-300 flex items-center gap-1.5"
                     >
-                      <div className="space-y-1">
-                        <div className="font-semibold text-slate-900">{t.task_name}</div>
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <TaskStatusBadge status={t.status} />
-                          <span>Est: {t.estimated_hours}h</span>
-                          <span>•</span>
-                          <span>Logged: {t.actual_hours_logged}h</span>
-                          <span>•</span>
-                          <span className="font-medium text-slate-700">Rem: {t.remaining_hours}h</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-mono font-bold text-slate-900">{t.weighted_effort} weighted hrs</div>
-                        <div className="text-[10px] text-slate-400">{t.complexity} ({t.complexity_weight}x)</div>
-                      </div>
-                    </div>
+                      <span className="font-semibold">{sk.skill_name}</span>
+                      <span className="text-[10px] text-indigo-400 font-mono">Lv.{sk.proficiency_level}</span>
+                    </span>
                   ))
+                ) : (
+                  <span className="text-xs text-slate-500">No skills registered</span>
                 )}
               </div>
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-slate-100">
+            <div className="flex justify-end pt-2">
               <button
+                type="button"
                 onClick={() => setSelectedDev(null)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                className="px-4 py-2 rounded-lg bg-dark-800 hover:bg-dark-750 text-white text-xs font-semibold transition"
               >
                 Close
               </button>

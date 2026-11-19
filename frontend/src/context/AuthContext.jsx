@@ -41,6 +41,11 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const signup = async (name, email, password, role = 'developer') => {
+    await api.post('/auth/register', { name, email, password, role });
+    return await login(email, password);
+  };
+
   const logout = () => {
     localStorage.removeItem('worksense_token');
     localStorage.removeItem('worksense_user');
@@ -57,6 +62,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!user,
         role: user?.role,
         login,
+        signup,
         logout,
       }}
     >

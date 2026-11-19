@@ -175,6 +175,20 @@ class TaskUpdate(BaseModel):
     assignments: Optional[List[TaskAssignmentInput]] = None
     required_skills: Optional[List[TaskRequiredSkillInput]] = None
     depends_on_task_ids: Optional[List[int]] = None
+    assigned_developer_id: Optional[int] = None
+
+class TaskPatch(BaseModel):
+    task_name: Optional[str] = None
+    description: Optional[str] = None
+    complexity: Optional[str] = None
+    priority: Optional[str] = None
+    estimated_hours: Optional[float] = None
+    status: Optional[str] = None
+    deadline: Optional[date] = None
+    assigned_developer_id: Optional[int] = None
+
+class DeveloperCapacityUpdate(BaseModel):
+    available_hours_per_week: float = Field(..., ge=0.0, le=168.0)
 
 class TaskAssignRequest(BaseModel):
     developer_id: int

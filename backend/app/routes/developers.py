@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.entities import Developer, User, Team, Skill, DeveloperSkill
-from app.schemas.schemas import DeveloperCreate, DeveloperUpdate, DeveloperResponse
+from app.schemas.schemas import DeveloperCreate, DeveloperUpdate, DeveloperResponse, DeveloperCapacityUpdate
 from app.routes.deps import get_current_user, require_role
 from app.intelligence.workload import WorkloadEngine
 
@@ -136,6 +136,21 @@ def update_developer(
             )
             db.add(ds)
 
+    db.commit()
+    db.refresh(dev)
+    return _serialize_developer(dev, db)
+
+@router.patch("/{id}/capacity", response_model=DeveloperResponse)
+def patch_developer_capacity(
+    id: int,
+    cap_in: DeveloperCapacityUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "project_manager"]))
+):
+    dev = db.query(Developer).filter(Developer.id == id).first()
+    if not dev:
+        raise HTTPException(status_code=404, detail="Developer not found")
+    dev.available_hours_per_week = Decimal(str(cap_in.available_hours_per_week))
     db.commit()
     db.refresh(dev)
     return _serialize_developer(dev, db)

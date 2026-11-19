@@ -16,7 +16,7 @@ from app.models.entities import (
     Skill,
     TimeLog,
 )
-from app.schemas.schemas import TaskCreate, TaskUpdate, TaskResponse, TaskAssignRequest
+from app.schemas.schemas import TaskCreate, TaskUpdate, TaskPatch, TaskResponse, TaskAssignRequest
 from app.routes.deps import get_current_user, require_role
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -262,6 +262,60 @@ def update_task(
             if dep_id != task.id:
                 td = TaskDependency(task_id=task.id, depends_on_task_id=dep_id)
                 db.add(td)
+
+    db.commit()
+    db.refresh(task)
+    return _serialize_task(task, db)
+
+@router.patch("/{id}", response_model=TaskResponse)
+def patch_task(
+    id: int,
+    task_patch: TaskPatch,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    task = db.query(Task).filter(Task.id == id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    is_manager = current_user.role in ("admin", "project_manager")
+
+    # Developer role can only patch their task status
+    if not is_manager:
+        if task_patch.status is not None:
+            task.status = task_patch.status.lower()
+        db.commit()
+        db.refresh(task)
+        return _serialize_task(task, db)
+
+    # Manager / Admin partial updates
+    if task_patch.task_name is not None:
+        task.task_name = task_patch.task_name.strip()
+    if task_patch.description is not None:
+        task.description = task_patch.description
+    if task_patch.complexity is not None:
+        task.complexity = task_patch.complexity.lower()
+    if task_patch.priority is not None:
+        task.priority = task_patch.priority.lower()
+    if task_patch.estimated_hours is not None:
+        task.estimated_hours = Decimal(str(task_patch.estimated_hours))
+    if task_patch.status is not None:
+        task.status = task_patch.status.lower()
+    if task_patch.deadline is not None:
+        task.deadline = task_patch.deadline
+
+    # Reassign developer if specified
+    if task_patch.assigned_developer_id is not None:
+        db.query(TaskAssignment).filter(TaskAssignment.task_id == task.id).delete()
+        if task_patch.assigned_developer_id > 0:
+            dev = db.query(Developer).filter(Developer.id == task_patch.assigned_developer_id).first()
+            if dev:
+                ta = TaskAssignment(
+                    task_id=task.id,
+                    developer_id=dev.id,
+                    allocation_percentage=Decimal("100.00")
+                )
+                db.add(ta)
 
     db.commit()
     db.refresh(task)
